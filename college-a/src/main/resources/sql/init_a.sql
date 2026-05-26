@@ -8,6 +8,7 @@ IF OBJECT_ID('选课', 'U') IS NOT NULL DROP TABLE 选课;
 IF OBJECT_ID('学生', 'U') IS NOT NULL DROP TABLE 学生;
 IF OBJECT_ID('课程', 'U') IS NOT NULL DROP TABLE 课程;
 IF OBJECT_ID('账户', 'U') IS NOT NULL DROP TABLE 账户;
+GO
 
 CREATE TABLE 账户 (
   账户名 varchar(10) NOT NULL PRIMARY KEY,
@@ -20,7 +21,7 @@ CREATE TABLE 学生 (
   姓名     varchar(10) NOT NULL,
   性别     varchar(2)  NOT NULL,
   院系     varchar(10) NOT NULL,
-  关联账户 varchar(10) NOT NULL FOREIGN KEY REFERENCES 账户(账户名)
+  关联账户 varchar(10) NULL FOREIGN KEY REFERENCES 账户(账户名)
 );
 
 CREATE TABLE 课程 (
