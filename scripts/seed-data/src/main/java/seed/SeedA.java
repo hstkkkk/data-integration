@@ -65,7 +65,7 @@ public final class SeedA {
     }
     // Courses
     for (Course c : d.courses()) {
-      sb.append(String.format("INSERT INTO 课程(课程编号,课程名称,课时,学分,授课老师,授课地点,共享) VALUES('%s','%s',%d,%.1f,'%s','%s','%s');\n",
+      sb.append(String.format("INSERT INTO 课程(课程编号,课程名称,课时,学分,授课老师,授课地点,共享) VALUES('%s','%s',%d,'%.0f','%s','%s','%s');\n",
           c.id(), c.name(), c.hours(), c.score(), c.teacher(), c.location(), c.shared() ? "Y" : "N"));
     }
     // Choices (50 students x 5 = 250)
