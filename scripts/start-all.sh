@@ -3,17 +3,22 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 mkdir -p logs
-echo "[1/3] Starting SQL Server (Docker) ..."
+echo "[1/4] Starting databases (Docker) ..."
 ./scripts/db/start-sqlserver.sh
+./scripts/db/start-oracle.sh
+./scripts/db/start-mysql.sh
 
-echo "[2/3] Building jars (skip tests) ..."
+echo "[2/4] Building jars (skip tests) ..."
 mvn -q -DskipTests install
 
-echo "[3/3] Starting Integration Server and College A Server ..."
-# Generate classpath files
+echo "[3/4] Generating classpath files ..."
 mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl integration
 mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl college-a
+mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl college-b
+mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl college-c
+mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl client
 
+echo "[4/4] Starting servers ..."
 java -Dport=9100 -cp integration/target/classes:common/target/classes:$(cat integration/target/classpath.txt) \
     integration.server.IntegrationServer >logs/integration.log 2>&1 &
 echo $! > logs/integration.pid
@@ -22,8 +27,17 @@ java -Dport=9001 -cp college-a/target/classes:common/target/classes:$(cat colleg
     college.a.server.CollegeAServer >logs/college-a.log 2>&1 &
 echo $! > logs/college-a.pid
 
-mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl client
+java -Dport=9002 -cp college-b/target/classes:common/target/classes:$(cat college-b/target/classpath.txt) \
+    college.b.server.CollegeBServer >logs/college-b.log 2>&1 &
+echo $! > logs/college-b.pid
 
-echo "Servers started. Logs in logs/."
-echo "To start client:"
+java -Dport=9003 -cp college-c/target/classes:common/target/classes:$(cat college-c/target/classpath.txt) \
+    college.c.server.CollegeCServer >logs/college-c.log 2>&1 &
+echo $! > logs/college-c.pid
+
+echo ""
+echo "All servers started. Logs in logs/."
+echo "To start clients:"
 echo "  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=A --server=127.0.0.1:9001"
+echo "  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=B --server=127.0.0.1:9002"
+echo "  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=C --server=127.0.0.1:9003"
