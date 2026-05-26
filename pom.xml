@@ -13,6 +13,7 @@
     <module>college-c</module>
     <module>integration</module>
     <module>client</module>
+    <module>scripts/seed-data</module>
   </modules>
 
   <properties>
