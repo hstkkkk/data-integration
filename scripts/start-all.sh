@@ -38,6 +38,6 @@ echo $! > logs/college-c.pid
 echo ""
 echo "All servers started. Logs in logs/."
 echo "To start clients:"
-echo "  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=A --server=127.0.0.1:9001"
-echo "  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=B --server=127.0.0.1:9002"
-echo "  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=C --server=127.0.0.1:9003"
+echo '  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=A --server=127.0.0.1:9001'
+echo '  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=B --server=127.0.0.1:9002'
+echo '  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=C --server=127.0.0.1:9003'
