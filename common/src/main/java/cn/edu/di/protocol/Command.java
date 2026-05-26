@@ -1,0 +1,14 @@
+package cn.edu.di.protocol;
+
+public enum Command {
+    LOGIN, LIST_LOCAL_COURSES, LIST_SHARED_COURSES, ENROLL, WITHDRAW, STATS_GLOBAL,
+    FETCH_SHARED_COURSES, ASK_COURSE_INFO, SEND_COURSE_INFO,
+    CROSS_ENROLL, CROSS_WITHDRAW, APPLY_CHOICE, REVOKE_CHOICE,
+    STATS_PULL, STATS_DATA,
+    PING, OK, ERR, UNKNOWN;
+
+    public static Command parse(String s) {
+        try { return Command.valueOf(s); }
+        catch (IllegalArgumentException e) { return UNKNOWN; }
+    }
+}
