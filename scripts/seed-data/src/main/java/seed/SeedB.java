@@ -26,7 +26,7 @@ public final class SeedB {
       String id = String.format("BS%03d", i);
       String name = SURNAMES[r.nextInt(SURNAMES.length)] + GIVEN[r.nextInt(GIVEN.length)];
       String sex = r.nextBoolean() ? "男" : "女";
-      students.add(new Student(id, name, sex, "计算机", "pw" + id.substring(2)));
+      students.add(new Student(id, name, sex, "计算机", "pwd" + id.substring(2)));
     }
 
     String[] cnames = {"数据库原理","编译原理","操作系统","算法分析","计算机网络",

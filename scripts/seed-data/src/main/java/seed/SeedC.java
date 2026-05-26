@@ -26,7 +26,7 @@ public final class SeedC {
       String id = String.format("CS%03d", i);
       String name = SURNAMES[r.nextInt(SURNAMES.length)] + GIVEN[r.nextInt(GIVEN.length)];
       String sex = r.nextBoolean() ? "M" : "F";
-      students.add(new Student(id, name, sex, "计算机", "pw" + id.substring(2)));
+      students.add(new Student(id, name, sex, "计算机", "pwd" + id.substring(2)));
     }
 
     String[] cnames = {"Database","Compilers","OS","Algorithms","Networks",

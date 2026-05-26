@@ -16,7 +16,7 @@ mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl int
 mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl college-a
 mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl college-b
 mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl college-c
-mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl client
+mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -DincludeScope=runtime -pl client
 
 echo "[4/4] Starting servers ..."
 java -Dport=9100 -cp integration/target/classes:common/target/classes:$(cat integration/target/classpath.txt) \
