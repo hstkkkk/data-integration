@@ -103,14 +103,25 @@ public class CourseListFrame extends JFrame {
     try {
       var doc = XmlIO.parse(xml);
       tableModel.setRowCount(0);
-      for (var obj : doc.getRootElement().elements("课程")) {
+      String rootName = doc.getRootElement().getName();
+      boolean isC = "courses".equals(rootName);
+
+      for (var obj : doc.getRootElement().elements(isC ? "course" : "课程")) {
         var el = (org.dom4j.Element) obj;
-        String id = el.elementText("课程编号");
-        String name = el.elementText("课程名称");
-        String score = el.elementText("学分");
-        String teacher = el.elementText("授课老师");
-        String location = el.elementText("授课地点");
-        String shared = el.elementText("共享");
+        String id, name, score, teacher, location, shared;
+        if (isC) {
+          id = el.elementText("Cno"); name = el.elementText("Cnm");
+          score = el.elementText("Cpt"); teacher = el.elementText("Tec");
+          location = el.elementText("Pla"); shared = el.elementText("Share");
+        } else if ("B".equals(college)) {
+          id = el.elementText("编号"); name = el.elementText("名称");
+          score = el.elementText("学分"); teacher = el.elementText("老师");
+          location = el.elementText("地点"); shared = el.elementText("共享");
+        } else {
+          id = el.elementText("课程编号"); name = el.elementText("课程名称");
+          score = el.elementText("学分"); teacher = el.elementText("授课老师");
+          location = el.elementText("授课地点"); shared = el.elementText("共享");
+        }
         tableModel.addRow(new Object[]{id, name, score, teacher, location, shared});
       }
     } catch (Exception e) {
