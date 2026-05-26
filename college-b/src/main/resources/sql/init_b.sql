@@ -41,7 +41,7 @@ CREATE TABLE collegeb.账户 (
 CREATE TABLE collegeb.学生 (
   学号 varchar2(12) PRIMARY KEY,
   姓名 varchar2(10) NOT NULL,
-  性别 varchar2(2)  NOT NULL,
+  性别 varchar2(3 CHAR)  NOT NULL,
   专业 varchar2(10) NOT NULL,
   密码 varchar2(12) NOT NULL
 );
