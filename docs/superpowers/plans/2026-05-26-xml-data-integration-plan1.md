@@ -1923,7 +1923,6 @@ import cn.edu.di.xml.XmlIO;
 import cn.edu.di.xml.XsdValidator;
 import org.junit.jupiter.api.Test;
 
-import javax.xml.transform.stream.StreamSource;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -1936,8 +1935,7 @@ class CourseAAdapterTest {
         new CourseDao.Row("AC001", "数据库", 32, new BigDecimal("3.0"), "李老师", "A101", true),
         new CourseDao.Row("AC002", "编译", 48, new BigDecimal("4.0"), "王老师", "A102", false));
     String xml = CourseAAdapter.marshal(rows);
-    var v = new XsdValidator(new StreamSource(getClass().getResourceAsStream("/schema/classA.xsd")));
-    var r = v.validate(xml);
+    var r = XsdValidator.fromClasspath("/schema/classA.xsd").validate(xml);
     assertTrue(r.valid(), r.errors().toString());
   }
 
@@ -1946,7 +1944,7 @@ class CourseAAdapterTest {
     var original = List.of(
         new CourseDao.Row("AC001", "数据库", 32, new BigDecimal("3.0"), "李老师", "A101", true));
     String xml = CourseAAdapter.marshal(original);
-    var parsed = CourseAAdapter.unmarshal(XmlIO.parseString(xml));
+    var parsed = CourseAAdapter.unmarshal(XmlIO.parse(xml));
     assertEquals(1, parsed.size());
     assertEquals("AC001", parsed.get(0).id());
     assertEquals("数据库", parsed.get(0).name());
@@ -1991,7 +1989,7 @@ public final class CourseAAdapter {
       e.addElement("授课地点").setText(r.location());
       e.addElement("共享").setText(r.shared() ? "Y" : "N");
     }
-    return XmlIO.toString(doc);
+    return XmlIO.toPrettyString(doc);
   }
 
   public static List<CourseDao.Row> unmarshal(Document doc) {
@@ -2041,7 +2039,6 @@ import college.a.dao.StudentDao;
 import cn.edu.di.xml.XmlIO;
 import cn.edu.di.xml.XsdValidator;
 import org.junit.jupiter.api.Test;
-import javax.xml.transform.stream.StreamSource;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -2052,14 +2049,14 @@ class StudentAAdapterTest {
         new StudentDao.Row("AS001", "张三", "男", "计算机", "as001"),
         new StudentDao.Row("AS002", "李四", "女", "计算机", null));
     String xml = StudentAAdapter.marshal(rows);
-    var r = new XsdValidator(new StreamSource(getClass().getResourceAsStream("/schema/studentA.xsd"))).validate(xml);
+    var r = XsdValidator.fromClasspath("/schema/studentA.xsd").validate(xml);
     assertTrue(r.valid(), r.errors().toString());
   }
 
   @Test
   void roundtrip_preserves() throws Exception {
     var original = List.of(new StudentDao.Row("AS001", "张三", "男", "计算机", "as001"));
-    var parsed = StudentAAdapter.unmarshal(XmlIO.parseString(StudentAAdapter.marshal(original)));
+    var parsed = StudentAAdapter.unmarshal(XmlIO.parse(StudentAAdapter.marshal(original)));
     assertEquals("张三", parsed.get(0).name());
     assertEquals("as001", parsed.get(0).accountRef());
   }
@@ -2098,7 +2095,7 @@ public final class StudentAAdapter {
       e.addElement("院系").setText(r.dept());
       if (r.accountRef() != null) e.addElement("关联账户").setText(r.accountRef());
     }
-    return XmlIO.toString(doc);
+    return XmlIO.toPrettyString(doc);
   }
 
   public static List<StudentDao.Row> unmarshal(Document doc) {
@@ -2142,7 +2139,6 @@ import college.a.dao.ChoiceDao;
 import cn.edu.di.xml.XmlIO;
 import cn.edu.di.xml.XsdValidator;
 import org.junit.jupiter.api.Test;
-import javax.xml.transform.stream.StreamSource;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -2152,14 +2148,14 @@ class ChoiceAAdapterTest {
     var rows = List.of(new ChoiceDao.Row("AC001", "AS001", "90", "A"),
                        new ChoiceDao.Row("AC002", "AS002", null, "A"));
     String xml = ChoiceAAdapter.marshal(rows);
-    var r = new XsdValidator(new StreamSource(getClass().getResourceAsStream("/schema/choiceA.xsd"))).validate(xml);
+    var r = XsdValidator.fromClasspath("/schema/choiceA.xsd").validate(xml);
     assertTrue(r.valid(), r.errors().toString());
   }
 
   @Test
   void roundtrip() throws Exception {
     var original = List.of(new ChoiceDao.Row("AC001", "AS001", "90", "A"));
-    var parsed = ChoiceAAdapter.unmarshal(XmlIO.parseString(ChoiceAAdapter.marshal(original)));
+    var parsed = ChoiceAAdapter.unmarshal(XmlIO.parse(ChoiceAAdapter.marshal(original)));
     assertEquals("AS001", parsed.get(0).studentId());
     assertEquals("90", parsed.get(0).score());
   }
@@ -2196,7 +2192,7 @@ public final class ChoiceAAdapter {
       e.addElement("学生编号").setText(r.studentId());
       if (r.score() != null) e.addElement("成绩").setText(r.score());
     }
-    return XmlIO.toString(doc);
+    return XmlIO.toPrettyString(doc);
   }
 
   public static List<ChoiceDao.Row> unmarshal(Document doc) {
