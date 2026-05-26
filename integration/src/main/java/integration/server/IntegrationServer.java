@@ -1,0 +1,67 @@
+package integration.server;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import integration.server.handler.PingHandler;
+
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+
+public class IntegrationServer implements AutoCloseable {
+
+  private final ServerSocket serverSocket;
+  private final IntegrationRouter router;
+  private volatile boolean running = true;
+
+  public IntegrationServer(int port, IntegrationRouter router) throws IOException {
+    this.router = router;
+    this.serverSocket = new ServerSocket(port);
+  }
+
+  /** Returns the port this server is actually listening on. */
+  public int getPort() {
+    return serverSocket.getLocalPort();
+  }
+
+  /** Start the accept loop, blocking the calling thread. */
+  public void serve() {
+    while (running) {
+      try {
+        Socket client = serverSocket.accept();
+        new Thread(() -> handleClient(client)).start();
+      } catch (SocketException e) {
+        if (!running) break; // expected during shutdown
+        System.err.println("accept error: " + e.getMessage());
+      } catch (IOException e) {
+        if (!running) break;
+        System.err.println("accept error: " + e.getMessage());
+      }
+    }
+  }
+
+  private void handleClient(Socket client) {
+    try (client) {
+      Message req = Message.read(client.getInputStream());
+      Message res = router.dispatch(req);
+      Message.write(client.getOutputStream(), res);
+    } catch (Exception e) {
+      System.err.println("client error: " + e.getMessage());
+    }
+  }
+
+  @Override
+  public void close() throws IOException {
+    running = false;
+    serverSocket.close();
+  }
+
+  public static void main(String[] args) throws Exception {
+    int port = Integer.parseInt(System.getProperty("port", "9100"));
+    IntegrationRouter router = new IntegrationRouter()
+        .register(Command.PING, new PingHandler());
+    IntegrationServer server = new IntegrationServer(port, router);
+    server.serve();
+  }
+}
