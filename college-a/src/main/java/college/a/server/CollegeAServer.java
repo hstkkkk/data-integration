@@ -1,9 +1,15 @@
 package college.a.server;
 
+import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import college.a.dao.AccountDao;
+import college.a.dao.ChoiceDao;
+import college.a.dao.CourseDao;
 import college.a.jdbc.JdbcFactory;
+import college.a.server.handler.EnrollLocalHandler;
+import college.a.server.handler.ListLocalCoursesHandler;
 import college.a.server.handler.LoginHandler;
+import college.a.server.handler.WithdrawLocalHandler;
 import college.a.service.AuthService;
 
 import java.io.IOException;
@@ -63,10 +69,15 @@ public class CollegeAServer implements AutoCloseable {
   public static void main(String[] args) throws Exception {
     int port = Integer.parseInt(System.getProperty("port", "9001"));
     DataSource ds = JdbcFactory.fromClasspath("/db.properties");
-    AccountDao dao = new AccountDao(ds);
-    AuthService auth = new AuthService(dao);
-    LoginHandler loginHandler = new LoginHandler(auth);
-    CommandRouter router = new CommandRouter().register(cn.edu.di.protocol.Command.LOGIN, loginHandler);
+    AccountDao accountDao = new AccountDao(ds);
+    CourseDao courseDao = new CourseDao(ds);
+    ChoiceDao choiceDao = new ChoiceDao(ds);
+    AuthService auth = new AuthService(accountDao);
+    CommandRouter router = new CommandRouter()
+        .register(Command.LOGIN, new LoginHandler(auth))
+        .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
+        .register(Command.ENROLL, new EnrollLocalHandler(courseDao, choiceDao))
+        .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao));
     CollegeAServer server = new CollegeAServer(port, router);
     server.serve();
   }
