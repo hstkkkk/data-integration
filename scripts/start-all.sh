@@ -22,6 +22,8 @@ java -Dport=9001 -cp college-a/target/classes:common/target/classes:$(cat colleg
     college.a.server.CollegeAServer >logs/college-a.log 2>&1 &
 echo $! > logs/college-a.pid
 
+mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl client
+
 echo "Servers started. Logs in logs/."
 echo "To start client:"
-echo "  java -cp client/target/classes:common/target/classes client.Main --college=A --server=127.0.0.1:9001"
+echo "  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=A --server=127.0.0.1:9001"
