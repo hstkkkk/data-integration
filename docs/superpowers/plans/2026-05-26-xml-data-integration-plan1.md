@@ -333,6 +333,7 @@ git commit -m "feat(common): message frame encoder/decoder with content-length a
 package cn.edu.di.protocol;
 
 import org.junit.jupiter.api.Test;
+import java.io.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MessageTest {
@@ -364,6 +365,15 @@ class MessageTest {
         assertEquals(Command.ERR, m.command());
         assertTrue(m.payload().contains("BUSINESS"));
         assertTrue(m.payload().contains("course full"));
+    }
+
+    @Test
+    void readWrite_roundTrip() throws Exception {
+        Message original = new Message(Command.ENROLL, "r-7", "<enroll/>");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        Message.write(out, original);
+        Message decoded = Message.read(new ByteArrayInputStream(out.toByteArray()));
+        assertEquals(original, decoded);
     }
 }
 ```
@@ -400,6 +410,10 @@ public enum Command {
 // common/src/main/java/cn/edu/di/protocol/Message.java
 package cn.edu.di.protocol;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 public record Message(Command command, String requestId, String payload) {
 
     public static Message fromFrame(MessageFrame f) {
@@ -408,6 +422,16 @@ public record Message(Command command, String requestId, String payload) {
 
     public MessageFrame toFrame() {
         return new MessageFrame(command.name(), requestId, payload);
+    }
+
+    /** Read a Message off the wire (decode frame + parse command). */
+    public static Message read(InputStream in) throws IOException {
+        return fromFrame(MessageFrame.readFrom(in));
+    }
+
+    /** Write a Message to the wire (encode frame). */
+    public static void write(OutputStream out, Message m) throws IOException {
+        m.toFrame().writeTo(out);
     }
 
     public static Message ok(String reqId, String payload) {
@@ -1083,7 +1107,7 @@ git commit -m "build(college-a): sql server docker script and init schema"
 // college-a/src/test/java/college/a/xml/SchemaATest.java
 package college.a.xml;
 
-import common.xml.XsdValidator;
+import cn.edu.di.xml.XsdValidator;
 import org.junit.jupiter.api.Test;
 import javax.xml.transform.stream.StreamSource;
 import java.io.StringReader;
@@ -1898,8 +1922,8 @@ git commit -m "feat(college-a): choice dao with enroll/withdraw/exists/findByStu
 package college.a.xml;
 
 import college.a.dao.CourseDao;
-import common.xml.XmlIO;
-import common.xml.XsdValidator;
+import cn.edu.di.xml.XmlIO;
+import cn.edu.di.xml.XsdValidator;
 import org.junit.jupiter.api.Test;
 
 import javax.xml.transform.stream.StreamSource;
@@ -1945,7 +1969,7 @@ Run: `mvn -pl college-a -am test -Dtest=CourseAAdapterTest`
 package college.a.xml;
 
 import college.a.dao.CourseDao;
-import common.xml.XmlIO;
+import cn.edu.di.xml.XmlIO;
 import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
@@ -2017,8 +2041,8 @@ git commit -m "feat(college-a): course xml adapter (marshal/unmarshal a-format)"
 package college.a.xml;
 
 import college.a.dao.StudentDao;
-import common.xml.XmlIO;
-import common.xml.XsdValidator;
+import cn.edu.di.xml.XmlIO;
+import cn.edu.di.xml.XsdValidator;
 import org.junit.jupiter.api.Test;
 import javax.xml.transform.stream.StreamSource;
 import java.util.List;
@@ -2056,7 +2080,7 @@ Run: `mvn -pl college-a -am test -Dtest=StudentAAdapterTest`
 package college.a.xml;
 
 import college.a.dao.StudentDao;
-import common.xml.XmlIO;
+import cn.edu.di.xml.XmlIO;
 import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
@@ -2118,8 +2142,8 @@ git commit -m "feat(college-a): student xml adapter (a-format)"
 package college.a.xml;
 
 import college.a.dao.ChoiceDao;
-import common.xml.XmlIO;
-import common.xml.XsdValidator;
+import cn.edu.di.xml.XmlIO;
+import cn.edu.di.xml.XsdValidator;
 import org.junit.jupiter.api.Test;
 import javax.xml.transform.stream.StreamSource;
 import java.util.List;
@@ -2156,7 +2180,7 @@ Run: `mvn -pl college-a -am test -Dtest=ChoiceAAdapterTest`
 package college.a.xml;
 
 import college.a.dao.ChoiceDao;
-import common.xml.XmlIO;
+import cn.edu.di.xml.XmlIO;
 import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
@@ -2224,8 +2248,8 @@ package college.a.server;
 import college.a.dao.AccountDao;
 import college.a.server.handler.LoginHandler;
 import college.a.service.AuthService;
-import common.protocol.Command;
-import common.protocol.Message;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
 import org.junit.jupiter.api.Test;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -2269,7 +2293,7 @@ Run: `mvn -pl college-a -am test -Dtest=LoginHandlerTest`
 // college-a/src/main/java/college/a/server/handler/Handler.java
 package college.a.server.handler;
 
-import common.protocol.Message;
+import cn.edu.di.protocol.Message;
 
 public interface Handler {
   Message handle(Message request);
@@ -2281,9 +2305,9 @@ public interface Handler {
 package college.a.server.handler;
 
 import college.a.service.AuthService;
-import common.protocol.Command;
-import common.protocol.Message;
-import common.xml.XmlIO;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
 
 public class LoginHandler implements Handler {
   private final AuthService auth;
@@ -2313,8 +2337,8 @@ public class LoginHandler implements Handler {
 package college.a.server;
 
 import college.a.server.handler.Handler;
-import common.protocol.Command;
-import common.protocol.Message;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -2344,10 +2368,10 @@ import college.a.dao.AccountDao;
 import college.a.jdbc.JdbcFactory;
 import college.a.server.handler.LoginHandler;
 import college.a.service.AuthService;
-import common.protocol.Command;
-import common.protocol.Message;
-import common.protocol.MessageFrame;
-import common.protocol.ProtocolException;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.protocol.MessageFrame;
+import cn.edu.di.protocol.ProtocolException;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -2378,11 +2402,11 @@ public class CollegeAServer implements AutoCloseable {
 
   private void handleClient(Socket s) {
     try (s) {
-      Message req = MessageFrame.read(s.getInputStream());
+      Message req = Message.read(s.getInputStream());
       Message res = router.dispatch(req);
-      MessageFrame.write(s.getOutputStream(), res);
+      Message.write(s.getOutputStream(), res);
     } catch (ProtocolException pe) {
-      try { MessageFrame.write(s.getOutputStream(),
+      try { Message.write(s.getOutputStream(),
           Message.err("0", "PROTOCOL", pe.getMessage())); } catch (IOException ignore) {}
     } catch (IOException ignore) {}
   }
@@ -2411,9 +2435,9 @@ public class CollegeAServer implements AutoCloseable {
 // college-a/src/test/java/college/a/server/AcceptLoopTest.java
 package college.a.server;
 
-import common.protocol.Command;
-import common.protocol.Message;
-import common.protocol.MessageFrame;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.protocol.MessageFrame;
 import org.junit.jupiter.api.Test;
 import java.net.Socket;
 import static org.junit.jupiter.api.Assertions.*;
@@ -2425,9 +2449,9 @@ class AcceptLoopTest {
     try (var srv = new CollegeAServer(0, router)) {
       Thread t = Thread.startVirtualThread(srv::serve);
       try (var sock = new Socket("127.0.0.1", srv.port())) {
-        MessageFrame.write(sock.getOutputStream(),
+        Message.write(sock.getOutputStream(),
             new Message(Command.LOGIN, "rx", "<x/>"));
-        Message res = MessageFrame.read(sock.getInputStream());
+        Message res = Message.read(sock.getInputStream());
         assertEquals(Command.ERR, res.command());
         assertTrue(res.payload().contains("UNKNOWN_CMD"));
       }
@@ -2468,8 +2492,8 @@ package college.a.server.handler;
 
 import college.a.dao.ChoiceDao;
 import college.a.dao.CourseDao;
-import common.protocol.Command;
-import common.protocol.Message;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -2546,7 +2570,7 @@ package college.a.server.handler;
 
 import college.a.dao.CourseDao;
 import college.a.xml.CourseAAdapter;
-import common.protocol.Message;
+import cn.edu.di.protocol.Message;
 
 public class ListLocalCoursesHandler implements Handler {
   private final CourseDao dao;
@@ -2567,8 +2591,8 @@ package college.a.server.handler;
 
 import college.a.dao.ChoiceDao;
 import college.a.dao.CourseDao;
-import common.protocol.Message;
-import common.xml.XmlIO;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
 
 public class EnrollLocalHandler implements Handler {
   private final CourseDao courseDao;
@@ -2607,8 +2631,8 @@ public class EnrollLocalHandler implements Handler {
 package college.a.server.handler;
 
 import college.a.dao.ChoiceDao;
-import common.protocol.Message;
-import common.xml.XmlIO;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
 
 public class WithdrawLocalHandler implements Handler {
   private final ChoiceDao dao;
@@ -2671,7 +2695,7 @@ git commit -m "feat(college-a): list/enroll/withdraw local handlers"
 
 > Plan 1 阶段集成 Server 仅响应 PING（健康检查）。所有跨院命令路由器留到 Plan 2 注册。
 
-- [ ] **Step 1：先在 common.protocol.Command 加入 PING**
+- [ ] **Step 1：先在 cn.edu.di.protocol.Command 加入 PING**
 
 修改 `common/src/main/java/common/protocol/Command.java`，将枚举里加 `PING`（如尚未存在）。同时确保 OK / ERR / LOGIN 等已有。
 
@@ -2681,8 +2705,8 @@ git commit -m "feat(college-a): list/enroll/withdraw local handlers"
 // integration/src/test/java/integration/server/PingHandlerTest.java
 package integration.server;
 
-import common.protocol.Command;
-import common.protocol.Message;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
 import integration.server.handler.PingHandler;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
@@ -2707,7 +2731,7 @@ Run: `mvn -pl integration -am test -Dtest=PingHandlerTest`
 // integration/src/main/java/integration/server/handler/Handler.java
 package integration.server.handler;
 
-import common.protocol.Message;
+import cn.edu.di.protocol.Message;
 
 public interface Handler {
   Message handle(Message request);
@@ -2718,7 +2742,7 @@ public interface Handler {
 // integration/src/main/java/integration/server/handler/PingHandler.java
 package integration.server.handler;
 
-import common.protocol.Message;
+import cn.edu.di.protocol.Message;
 
 public class PingHandler implements Handler {
   @Override
@@ -2734,8 +2758,8 @@ public class PingHandler implements Handler {
 // integration/src/main/java/integration/server/IntegrationRouter.java
 package integration.server;
 
-import common.protocol.Command;
-import common.protocol.Message;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
 import integration.server.handler.Handler;
 import java.util.EnumMap;
 import java.util.Map;
@@ -2761,10 +2785,10 @@ public class IntegrationRouter {
 // integration/src/main/java/integration/server/IntegrationServer.java
 package integration.server;
 
-import common.protocol.Command;
-import common.protocol.Message;
-import common.protocol.MessageFrame;
-import common.protocol.ProtocolException;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.protocol.MessageFrame;
+import cn.edu.di.protocol.ProtocolException;
 import integration.server.handler.PingHandler;
 
 import java.io.IOException;
@@ -2796,11 +2820,11 @@ public class IntegrationServer implements AutoCloseable {
 
   private void handle(Socket s) {
     try (s) {
-      Message req = MessageFrame.read(s.getInputStream());
+      Message req = Message.read(s.getInputStream());
       Message res = router.dispatch(req);
-      MessageFrame.write(s.getOutputStream(), res);
+      Message.write(s.getOutputStream(), res);
     } catch (ProtocolException pe) {
-      try { MessageFrame.write(s.getOutputStream(),
+      try { Message.write(s.getOutputStream(),
           Message.err("0", "PROTOCOL", pe.getMessage())); } catch (IOException ignore) {}
     } catch (IOException ignore) {}
   }
@@ -2824,9 +2848,9 @@ public class IntegrationServer implements AutoCloseable {
 // integration/src/test/java/integration/server/AcceptLoopTest.java
 package integration.server;
 
-import common.protocol.Command;
-import common.protocol.Message;
-import common.protocol.MessageFrame;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.protocol.MessageFrame;
 import integration.server.handler.PingHandler;
 import org.junit.jupiter.api.Test;
 import java.net.Socket;
@@ -2839,9 +2863,9 @@ class AcceptLoopTest {
     try (var srv = new IntegrationServer(0, router)) {
       Thread.startVirtualThread(srv::serve);
       try (var sock = new Socket("127.0.0.1", srv.port())) {
-        MessageFrame.write(sock.getOutputStream(),
+        Message.write(sock.getOutputStream(),
             new Message(Command.PING, "p1", ""));
-        Message res = MessageFrame.read(sock.getInputStream());
+        Message res = Message.read(sock.getInputStream());
         assertEquals(Command.OK, res.command());
         assertTrue(res.payload().contains("pong"));
       }
@@ -2881,9 +2905,9 @@ git commit -m "feat(integration): server skeleton with router and ping handler"
 // client/src/test/java/client/net/CollegeClientTest.java
 package client.net;
 
-import common.protocol.Command;
-import common.protocol.Message;
-import common.protocol.MessageFrame;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.protocol.MessageFrame;
 import org.junit.jupiter.api.Test;
 import java.net.ServerSocket;
 import static org.junit.jupiter.api.Assertions.*;
@@ -2894,8 +2918,8 @@ class CollegeClientTest {
     try (var server = new ServerSocket(0)) {
       Thread.startVirtualThread(() -> {
         try (var s = server.accept()) {
-          Message req = MessageFrame.read(s.getInputStream());
-          MessageFrame.write(s.getOutputStream(),
+          Message req = Message.read(s.getInputStream());
+          Message.write(s.getOutputStream(),
               Message.ok(req.requestId(), "<echo>" + req.payload() + "</echo>"));
         } catch (Exception ignore) {}
       });
@@ -2918,8 +2942,8 @@ Run: `mvn -pl client -am test -Dtest=CollegeClientTest`
 // client/src/main/java/client/net/CollegeClient.java
 package client.net;
 
-import common.protocol.Message;
-import common.protocol.MessageFrame;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.protocol.MessageFrame;
 import java.io.IOException;
 import java.net.Socket;
 
@@ -2933,8 +2957,8 @@ public class CollegeClient {
 
   public Message send(Message req) throws IOException {
     try (var sock = new Socket(host, port)) {
-      MessageFrame.write(sock.getOutputStream(), req);
-      return MessageFrame.read(sock.getInputStream());
+      Message.write(sock.getOutputStream(), req);
+      return Message.read(sock.getInputStream());
     }
   }
 }
@@ -2951,9 +2975,9 @@ Run: `mvn -pl client -am test -Dtest=CollegeClientTest`
 package client.ui;
 
 import client.net.CollegeClient;
-import common.protocol.Command;
-import common.protocol.Message;
-import common.xml.XmlIO;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
 
 import javax.swing.*;
 import java.awt.*;
@@ -3019,9 +3043,9 @@ public class LoginFrame extends JFrame {
 package client.ui;
 
 import client.net.CollegeClient;
-import common.protocol.Command;
-import common.protocol.Message;
-import common.xml.XmlIO;
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
 import org.dom4j.Element;
 
 import javax.swing.*;
