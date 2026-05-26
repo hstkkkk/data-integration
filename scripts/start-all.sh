@@ -7,12 +7,12 @@ echo "[1/3] Starting SQL Server (Docker) ..."
 ./scripts/db/start-sqlserver.sh
 
 echo "[2/3] Building jars (skip tests) ..."
-mvn -q -DskipTests package
+mvn -q -DskipTests install
 
 echo "[3/3] Starting Integration Server and College A Server ..."
 # Generate classpath files
-mvn -q -DskipTests dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl integration
-mvn -q -DskipTests dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl college-a
+mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl integration
+mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl college-a
 
 java -Dport=9100 -cp integration/target/classes:common/target/classes:$(cat integration/target/classpath.txt) \
     integration.server.IntegrationServer >logs/integration.log 2>&1 &
