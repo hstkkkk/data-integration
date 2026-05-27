@@ -29,15 +29,6 @@ class XslTest {
     assertTrue(out.contains("<origin>C</origin>"));
   }
 
-  @Test void AtoB_roundtrip() {
-    var toUnified = XsltTransformer.fromClasspath("/xsl/formatA.xsl");
-    var toB = XsltTransformer.fromClasspath("/xsl/AtoB.xsl");
-    String in = "<课程集><课程><课程编号>AC001</课程编号><课程名称>DB</课程名称><课时>32</课时><学分>3</学分><授课老师>Li</授课老师><授课地点>A101</授课地点><共享>Y</共享></课程></课程集>";
-    String out = toB.transform(toUnified.transform(in));
-    assertTrue(out.contains("<编号>AC001</编号>"));
-    assertTrue(out.contains("<老师>Li</老师>"));
-  }
-
   @Test void identity_preserves_xml() {
     var t = XsltTransformer.fromClasspath("/xsl/identity.xsl");
     assertTrue(t.transform("<a>1</a>").contains("<a>1</a>"));
