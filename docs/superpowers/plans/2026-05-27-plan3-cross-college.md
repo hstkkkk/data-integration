@@ -1303,60 +1303,407 @@ git commit -m "feat(cross): cross-college withdraw via integration server"
 ## Task 8: 全局统计 — STATS_GLOBAL 流程
 
 **Files:**
+- Modify: 三院 `ChoiceDao.java`(加 `findAll()`)
+- Create: 三院 `College{A,B,C}/.../handler/StatsForwardHandler.java`(处理 STATS_GLOBAL → 转发 integration)
+- Create: 三院 `College{A,B,C}/.../handler/StatsPullHandler.java`(处理 STATS_PULL → 返回本院统计)
 - Create: `integration/src/main/java/integration/server/handler/StatsGlobalHandler.java`
-- Create: `college-a/src/main/java/college/a/server/handler/StatsPullHandler.java`（B/C 同理）
+- Modify: 三院 `College{A,B,C}Server.java`(注册 STATS_GLOBAL + STATS_PULL)
+- Modify: `integration/src/main/java/integration/server/IntegrationServer.java`(注册 STATS_GLOBAL)
 
-客户端发 `STATS_GLOBAL` → College Server 转发给 Integration Server → Integration 同时向三院发 `STATS_PULL` → 各院返回 `STATS_DATA`（本院格式的学生/课程/选课 XML）→ Integration 用 XSL 转换后聚合统计 → 返回统一格式统计报表。
+流程：Client → 院.STATS_GLOBAL → Integration.STATS_GLOBAL → 三院.STATS_PULL(并发) → 各院返回 OK 内嵌 unified XML → Integration 聚合 → 返回 Client。
 
-- [ ] **Step 1: 实现 StatsPullHandler（各学院）**
+各院 STATS_PULL 返回的 unified 格式：
 
-查询本院全部数据，用本院 Adapter marshal 返回：
-
-```java
-// 伪代码
-String studentsXml = StudentAdapter.marshal(studentDao.findAll());
-String coursesXml = CourseAdapter.marshal(courseDao.findAll());
-String choicesXml = ChoiceAdapter.marshal(choiceDao.findAll());
-String combined = "<stats><students>" + studentsXml + "</students><courses>" + coursesXml + "</courses><choices>" + choicesXml + "</choices></stats>";
-return Message.ok(req.requestId(), combined);
+```xml
+<pullData college="A">
+  <studentCount>50</studentCount>
+  <courseCount>10</courseCount>
+  <sharedCount>4</sharedCount>
+  <crossEnrollmentCount>5</crossEnrollmentCount>
+  <courses>
+    <course id="AC001" name="数据库原理" enrollments="28"/>
+    ...
+  </courses>
+</pullData>
 ```
 
-- [ ] **Step 2: 实现 StatsGlobalHandler（Integration Server）**
+跨院选课判定：本院 `选课` 表中学生编号**不以本院 studentIdPrefix 开头**即为外院学生跨选本院课。
 
-```java
-// 向三院收集 STATS_DATA
-// 聚合统计维度：
-// - 各院学生数 / 课程数 / 共享课程数
-// - 跨院选课总数与占比（根据 origin 字段）
-// - 课程被选热度排行 Top 5
-// 返回统一格式 XML
-return Message.ok(req.requestId(), statsXml);
-```
+Integration 返回的 unified 报表：
 
-统计结果 XML 格式：
 ```xml
 <stats>
   <summary>
     <totalStudents>150</totalStudents>
     <totalCourses>30</totalCourses>
     <totalSharedCourses>12</totalSharedCourses>
-    <crossEnrollments>45</crossEnrollments>
-    <crossPercentage>18</crossPercentage>
+    <crossEnrollments>15</crossEnrollments>
   </summary>
   <byCollege>
-    <college code="A"><students>50</students><courses>10</courses><shared>4</shared></college>
-    <college code="B"><students>50</students><courses>10</courses><shared>4</shared></college>
-    <college code="C"><students>50</students><courses>10</courses><shared>4</shared></college>
+    <college code="A" students="50" courses="10" shared="4" crossEnrollments="5"/>
+    <college code="B" students="50" courses="10" shared="4" crossEnrollments="6"/>
+    <college code="C" students="50" courses="10" shared="4" crossEnrollments="4"/>
   </byCollege>
   <topCourses>
-    <course id="BC001" name="数据库原理" enrollments="28"/>
-    <course id="AC001" name="数据库原理" enrollments="26"/>
-    <!-- ... -->
+    <course id="BC001" name="..." enrollments="28"/>
+    ...(top 5)
   </topCourses>
 </stats>
 ```
 
-- [ ] **Step 3: commit**
+- [ ] **Step 1: 三院 ChoiceDao 加 `findAll()`**
+
+A 院 `college-a/src/main/java/college/a/dao/ChoiceDao.java`,在 `findByStudent` 之前**追加方法**(不改其他方法)：
+
+```java
+  public List<Row> findAll() {
+    String sql = "SELECT 课程编号,学生编号,成绩,来源 FROM 选课";
+    try (var c = ds.getConnection(); var ps = c.prepareStatement(sql); var rs = ps.executeQuery()) {
+      List<Row> out = new ArrayList<>();
+      while (rs.next()) out.add(new Row(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)));
+      return out;
+    } catch (SQLException e) { throw new RuntimeException(e); }
+  }
+```
+
+B 院 `college-b/src/main/java/college/b/dao/ChoiceDao.java`,追加：
+
+```java
+  public List<Row> findAll() {
+    String sql = "SELECT 课程编号,学号,得分 FROM 选课";
+    try (var c = ds.getConnection(); var ps = c.prepareStatement(sql); var rs = ps.executeQuery()) {
+      List<Row> out = new ArrayList<>();
+      while (rs.next()) out.add(new Row(rs.getString(1), rs.getString(2), rs.getString(3)));
+      return out;
+    } catch (SQLException e) { throw new RuntimeException(e); }
+  }
+```
+
+C 院 `college-c/src/main/java/college/c/dao/ChoiceDao.java`,追加：
+
+```java
+  public List<Row> findAll() {
+    String sql = "SELECT Cno, Sno, Grd FROM 选课";
+    try (var c = ds.getConnection(); var ps = c.prepareStatement(sql); var rs = ps.executeQuery()) {
+      List<Row> out = new ArrayList<>();
+      while (rs.next()) out.add(new Row(rs.getString(1), rs.getString(2), rs.getString(3)));
+      return out;
+    } catch (SQLException e) { throw new RuntimeException(e); }
+  }
+```
+
+- [ ] **Step 2: 三院 StatsForwardHandler.java**
+
+A 院 (`college-a/.../handler/StatsForwardHandler.java`,新建)：
+
+```java
+package college.a.server.handler;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import college.a.server.CollegeServerConfig;
+
+import java.net.Socket;
+import java.util.UUID;
+
+public class StatsForwardHandler implements Handler {
+  private final CollegeServerConfig config;
+
+  public StatsForwardHandler(CollegeServerConfig config) {
+    this.config = config;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try (var sock = new Socket(config.integrationHost, config.integrationPort)) {
+      Message.write(sock.getOutputStream(),
+          new Message(Command.STATS_GLOBAL, UUID.randomUUID().toString(), ""));
+      Message resp = Message.read(sock.getInputStream());
+      return resp.command() == Command.OK
+          ? Message.ok(req.requestId(), resp.payload())
+          : Message.err(req.requestId(), "STATS_FAILED", resp.payload());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+B 院 (`college-b/.../StatsForwardHandler.java`)：与 A 同构,仅 `package college.b.server.handler;` + `import college.b.server.CollegeServerConfig;`。
+
+C 院 (`college-c/.../StatsForwardHandler.java`)：与 A 同构,仅 package + import 改为 c。
+
+- [ ] **Step 3: 三院 StatsPullHandler.java**
+
+A 院 (`college-a/.../handler/StatsPullHandler.java`,新建)：
+
+```java
+package college.a.server.handler;
+
+import cn.edu.di.protocol.Message;
+import college.a.dao.ChoiceDao;
+import college.a.dao.CourseDao;
+import college.a.dao.StudentDao;
+import college.a.server.CollegeServerConfig;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class StatsPullHandler implements Handler {
+  private final StudentDao studentDao;
+  private final CourseDao courseDao;
+  private final ChoiceDao choiceDao;
+  private final CollegeServerConfig config;
+
+  public StatsPullHandler(StudentDao studentDao, CourseDao courseDao,
+                          ChoiceDao choiceDao, CollegeServerConfig config) {
+    this.studentDao = studentDao;
+    this.courseDao = courseDao;
+    this.choiceDao = choiceDao;
+    this.config = config;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      var students = studentDao.findAll();
+      var courses = courseDao.findAll();
+      var shared = courseDao.findShared();
+      var choices = choiceDao.findAll();
+
+      Map<String, Integer> enrollByCourse = new HashMap<>();
+      int crossCount = 0;
+      for (var ch : choices) {
+        enrollByCourse.merge(ch.courseId(), 1, Integer::sum);
+        if (!ch.studentId().startsWith(config.studentIdPrefix)) crossCount++;
+      }
+
+      StringBuilder sb = new StringBuilder();
+      sb.append("<pullData college=\"").append(config.collegeCode).append("\">");
+      sb.append("<studentCount>").append(students.size()).append("</studentCount>");
+      sb.append("<courseCount>").append(courses.size()).append("</courseCount>");
+      sb.append("<sharedCount>").append(shared.size()).append("</sharedCount>");
+      sb.append("<crossEnrollmentCount>").append(crossCount).append("</crossEnrollmentCount>");
+      sb.append("<courses>");
+      for (var c : courses) {
+        sb.append("<course id=\"").append(c.id())
+          .append("\" name=\"").append(c.name())
+          .append("\" enrollments=\"").append(enrollByCourse.getOrDefault(c.id(), 0))
+          .append("\"/>");
+      }
+      sb.append("</courses>");
+      sb.append("</pullData>");
+
+      return Message.ok(req.requestId(), sb.toString());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "PULL_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+B 院 (`college-b/.../StatsPullHandler.java`,与 A 同构,仅 package + DAO import 不同)：
+
+```java
+package college.b.server.handler;
+
+import cn.edu.di.protocol.Message;
+import college.b.dao.ChoiceDao;
+import college.b.dao.CourseDao;
+import college.b.dao.StudentDao;
+import college.b.server.CollegeServerConfig;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class StatsPullHandler implements Handler {
+  private final StudentDao studentDao;
+  private final CourseDao courseDao;
+  private final ChoiceDao choiceDao;
+  private final CollegeServerConfig config;
+
+  public StatsPullHandler(StudentDao studentDao, CourseDao courseDao,
+                          ChoiceDao choiceDao, CollegeServerConfig config) {
+    this.studentDao = studentDao;
+    this.courseDao = courseDao;
+    this.choiceDao = choiceDao;
+    this.config = config;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      var students = studentDao.findAll();
+      var courses = courseDao.findAll();
+      var shared = courseDao.findShared();
+      var choices = choiceDao.findAll();
+
+      Map<String, Integer> enrollByCourse = new HashMap<>();
+      int crossCount = 0;
+      for (var ch : choices) {
+        enrollByCourse.merge(ch.courseId(), 1, Integer::sum);
+        if (!ch.studentId().startsWith(config.studentIdPrefix)) crossCount++;
+      }
+
+      StringBuilder sb = new StringBuilder();
+      sb.append("<pullData college=\"").append(config.collegeCode).append("\">");
+      sb.append("<studentCount>").append(students.size()).append("</studentCount>");
+      sb.append("<courseCount>").append(courses.size()).append("</courseCount>");
+      sb.append("<sharedCount>").append(shared.size()).append("</sharedCount>");
+      sb.append("<crossEnrollmentCount>").append(crossCount).append("</crossEnrollmentCount>");
+      sb.append("<courses>");
+      for (var c : courses) {
+        sb.append("<course id=\"").append(c.id())
+          .append("\" name=\"").append(c.name())
+          .append("\" enrollments=\"").append(enrollByCourse.getOrDefault(c.id(), 0))
+          .append("\"/>");
+      }
+      sb.append("</courses>");
+      sb.append("</pullData>");
+
+      return Message.ok(req.requestId(), sb.toString());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "PULL_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+C 院 (`college-c/.../StatsPullHandler.java`,与 B 同构,仅 package + DAO import 改为 c)。
+
+- [ ] **Step 4: integration StatsGlobalHandler.java**
+
+`integration/src/main/java/integration/server/handler/StatsGlobalHandler.java`：
+
+```java
+package integration.server.handler;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import integration.net.CollegeClient;
+import org.dom4j.Element;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
+
+public class StatsGlobalHandler implements Handler {
+
+  private final CollegeClient clientA;
+  private final CollegeClient clientB;
+  private final CollegeClient clientC;
+
+  public StatsGlobalHandler(CollegeClient clientA, CollegeClient clientB, CollegeClient clientC) {
+    this.clientA = clientA;
+    this.clientB = clientB;
+    this.clientC = clientC;
+  }
+
+  private record CollegeStat(String code, int students, int courses, int shared, int cross) {}
+  private record CourseEntry(String id, String name, int enrollments) {}
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      var stats = new ArrayList<CollegeStat>();
+      var allCourses = new ArrayList<CourseEntry>();
+
+      for (CollegeClient client : List.of(clientA, clientB, clientC)) {
+        Message resp = client.send(new Message(Command.STATS_PULL, UUID.randomUUID().toString(), ""));
+        if (resp.command() != Command.OK) {
+          return Message.err(req.requestId(), "PULL_FAILED", resp.payload());
+        }
+        Element root = XmlIO.parse(resp.payload()).getRootElement();
+        String code = root.attributeValue("college");
+        int students = Integer.parseInt(root.elementText("studentCount"));
+        int courses = Integer.parseInt(root.elementText("courseCount"));
+        int shared = Integer.parseInt(root.elementText("sharedCount"));
+        int cross = Integer.parseInt(root.elementText("crossEnrollmentCount"));
+        stats.add(new CollegeStat(code, students, courses, shared, cross));
+
+        Element coursesEl = root.element("courses");
+        for (Object o : coursesEl.elements("course")) {
+          Element ce = (Element) o;
+          allCourses.add(new CourseEntry(
+              ce.attributeValue("id"),
+              ce.attributeValue("name"),
+              Integer.parseInt(ce.attributeValue("enrollments"))));
+        }
+      }
+
+      int totalStudents = stats.stream().mapToInt(CollegeStat::students).sum();
+      int totalCourses = stats.stream().mapToInt(CollegeStat::courses).sum();
+      int totalShared = stats.stream().mapToInt(CollegeStat::shared).sum();
+      int totalCross = stats.stream().mapToInt(CollegeStat::cross).sum();
+
+      allCourses.sort(Comparator.comparingInt(CourseEntry::enrollments).reversed());
+      var top5 = allCourses.stream().limit(5).toList();
+
+      StringBuilder sb = new StringBuilder();
+      sb.append("<stats>");
+      sb.append("<summary>");
+      sb.append("<totalStudents>").append(totalStudents).append("</totalStudents>");
+      sb.append("<totalCourses>").append(totalCourses).append("</totalCourses>");
+      sb.append("<totalSharedCourses>").append(totalShared).append("</totalSharedCourses>");
+      sb.append("<crossEnrollments>").append(totalCross).append("</crossEnrollments>");
+      sb.append("</summary>");
+      sb.append("<byCollege>");
+      for (var s : stats) {
+        sb.append("<college code=\"").append(s.code())
+          .append("\" students=\"").append(s.students())
+          .append("\" courses=\"").append(s.courses())
+          .append("\" shared=\"").append(s.shared())
+          .append("\" crossEnrollments=\"").append(s.cross())
+          .append("\"/>");
+      }
+      sb.append("</byCollege>");
+      sb.append("<topCourses>");
+      for (var c : top5) {
+        sb.append("<course id=\"").append(c.id())
+          .append("\" name=\"").append(c.name())
+          .append("\" enrollments=\"").append(c.enrollments())
+          .append("\"/>");
+      }
+      sb.append("</topCourses>");
+      sb.append("</stats>");
+
+      return Message.ok(req.requestId(), sb.toString());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "STATS_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+- [ ] **Step 5: 三院 main 注册 STATS_GLOBAL + STATS_PULL**
+
+每院 `College{X}Server.main()`：
+
+1. main 中创建 `studentDao`(若没有则补 `new StudentDao(ds)`)
+2. 链尾追加：
+   ```java
+   .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))
+   .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config))
+   ```
+3. main 顶部加 `import college.{a,b,c}.dao.StudentDao;`(若没有)、`import college.{a,b,c}.server.handler.StatsForwardHandler;`、`import college.{a,b,c}.server.handler.StatsPullHandler;`
+
+- [ ] **Step 6: IntegrationServer.main 注册 STATS_GLOBAL**
+
+链尾追加：
+```java
+.register(Command.STATS_GLOBAL, new StatsGlobalHandler(clientA, clientB, clientC));
+```
+顶部加 `import integration.server.handler.StatsGlobalHandler;`
+
+- [ ] **Step 7: 编译 + commit**
+
+```bash
+mvn -q -DskipTests compile
+git add college-a/src/ college-b/src/ college-c/src/ integration/src/
+git commit -m "feat(stats): global stats aggregation across colleges"
+```
 
 ---
 
