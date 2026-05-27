@@ -84,7 +84,7 @@ public class CollegeBServer implements AutoCloseable {
         .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao, config))
         .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao))
         .register(Command.LIST_SHARED_COURSES,
-            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "B", "/xsl/AtoB.xsl"))
+            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "B", "/xsl/unifiedToB.xsl"))
         .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
         .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))
         .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))

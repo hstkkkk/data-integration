@@ -54,7 +54,7 @@ A、B、C 三院按上述流程各自演示，证明三个 DBMS（SQL Server / O
    - A Server → Integration Server : `FETCH_SHARED_COURSES`（payload `<from>A</from>`）
    - Integration Server → B/C Server : `ASK_COURSE_INFO`，分别取得 B/C 原生 XML
    - Integration Server 用 `formatB.xsl / formatC.xsl` 转为统一 `<classes>` 格式 → XSD 校验 → 合并
-   - A Server 用 `BtoA.xsl` 把统一格式转回 A 院字段 → 客户端表格直接复用本院解析
+   - A Server 用 `unifiedToA.xsl` 把统一格式转回 A 院字段 → 客户端表格直接复用本院解析
 2. 选中一门 B 院共享课（如 `BC003`），点击「选课」
    - 客户端 → A Server `ENROLL`（payload 用 A 院字段）
    - A 院 `EnrollLocalHandler` 检测到 courseId 不以 `AC` 开头 → 转发 `CROSS_ENROLL`
@@ -90,9 +90,9 @@ A、B、C 三院按上述流程各自演示，证明三个 DBMS（SQL Server / O
 | `integration/src/main/resources/xsl/formatB.xsl` | B 院原生 → 统一（聚合用） |
 | `integration/src/main/resources/xsl/formatC.xsl` | C 院原生 → 统一（聚合用） |
 | `integration/src/main/resources/xsl/identity.xsl` | 身份变换（用于回归测试） |
-| `college-a/src/main/resources/xsl/BtoA.xsl` | 统一 → A 院本地（A 院展示共享课用） |
-| `college-b/src/main/resources/xsl/AtoB.xsl` | 统一 → B 院本地（B 院展示共享课用） |
-| `college-c/src/main/resources/xsl/AtoC.xsl` | 统一 → C 院本地（C 院展示共享课用） |
+| `college-a/src/main/resources/xsl/unifiedToA.xsl` | 统一 → A 院本地（A 院展示共享课用） |
+| `college-b/src/main/resources/xsl/unifiedToB.xsl` | 统一 → B 院本地（B 院展示共享课用） |
+| `college-c/src/main/resources/xsl/unifiedToC.xsl` | 统一 → C 院本地（C 院展示共享课用） |
 | `common/src/main/resources/schema/formatClass.xsd` | 统一 `<classes>` 课程格式 XSD 校验 |
 | `common/src/main/resources/schema/formatStudent.xsd` | 统一学生格式 XSD 校验 |
 | `common/src/main/resources/schema/formatChoice.xsd` | 统一选课格式 XSD 校验 |
