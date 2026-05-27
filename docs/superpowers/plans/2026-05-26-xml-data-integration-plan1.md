@@ -2309,7 +2309,7 @@ public class LoginHandler implements Handler {
   @Override
   public Message handle(Message req) {
     try {
-      var doc = XmlIO.parseString(req.payload());
+      var doc = XmlIO.parse(req.payload());
       String user = doc.getRootElement().elementText("user");
       String pass = doc.getRootElement().elementText("pass");
       return auth.login(user, pass)
@@ -2599,7 +2599,7 @@ public class EnrollLocalHandler implements Handler {
   @Override
   public Message handle(Message req) {
     try {
-      var doc = XmlIO.parseString(req.payload());
+      var doc = XmlIO.parse(req.payload());
       String cid = doc.getRootElement().elementText("课程编号");
       String sid = doc.getRootElement().elementText("学生编号");
 
@@ -2634,7 +2634,7 @@ public class WithdrawLocalHandler implements Handler {
   @Override
   public Message handle(Message req) {
     try {
-      var doc = XmlIO.parseString(req.payload());
+      var doc = XmlIO.parse(req.payload());
       String cid = doc.getRootElement().elementText("课程编号");
       String sid = doc.getRootElement().elementText("学生编号");
       int n = dao.withdraw(sid, cid);
