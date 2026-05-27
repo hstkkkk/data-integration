@@ -107,9 +107,8 @@ git commit -m "feat(integration): college client for cross-server communication"
 // college-a/src/main/java/college/a/server/CollegeServerConfig.java
 package college.a.server;
 
-import integration.net.CollegeClient;  // 注意：common 不依赖 integration
-// College Server 需要一个简单的 TCP 客户端来联系 Integration Server
-// 复用 client 模块的 CollegeClient 模式，但放在 college 模块内
+// 注：college 模块不依赖 integration 模块。CollegeServerConfig 只持有
+// integration host/port 字符串，跨院转发由后续任务用普通 Socket 完成。
 
 public class CollegeServerConfig {
   public final String collegeCode;      // "A", "B", or "C"
