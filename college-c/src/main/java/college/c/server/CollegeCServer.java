@@ -4,6 +4,7 @@ import college.c.dao.AccountDao;
 import college.c.dao.ChoiceDao;
 import college.c.dao.CourseDao;
 import college.c.jdbc.JdbcFactory;
+import college.c.server.handler.ApplyChoiceHandler;
 import college.c.server.handler.EnrollLocalHandler;
 import college.c.server.handler.ListLocalCoursesHandler;
 import college.c.server.handler.ListSharedCoursesHandler;
@@ -72,11 +73,12 @@ public class CollegeCServer implements AutoCloseable {
     var router = new CommandRouter()
         .register(Command.LOGIN, new LoginHandler(new AuthService(accountDao)))
         .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
-        .register(Command.ENROLL, new EnrollLocalHandler(courseDao, choiceDao))
+        .register(Command.ENROLL, new EnrollLocalHandler(courseDao, choiceDao, config))
         .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao))
         .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao))
         .register(Command.LIST_SHARED_COURSES,
-            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "C", "/xsl/AtoC.xsl"));
+            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "C", "/xsl/AtoC.xsl"))
+        .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao));
 
     try (var srv = new CollegeCServer(port, router)) {
       System.out.println("College C server listening on " + srv.getPort());

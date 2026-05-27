@@ -3,6 +3,7 @@ package integration.server;
 import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import integration.net.CollegeClient;
+import integration.server.handler.CrossEnrollHandler;
 import integration.server.handler.FetchSharedCoursesHandler;
 import integration.server.handler.PingHandler;
 
@@ -61,11 +62,13 @@ public class IntegrationServer implements AutoCloseable {
 
   public static void main(String[] args) throws Exception {
     int port = Integer.parseInt(System.getProperty("port", "9100"));
+    var clientA = new CollegeClient("127.0.0.1", 9001);
     var clientB = new CollegeClient("127.0.0.1", 9002);
     var clientC = new CollegeClient("127.0.0.1", 9003);
     IntegrationRouter router = new IntegrationRouter()
         .register(Command.PING, new PingHandler())
-        .register(Command.FETCH_SHARED_COURSES, new FetchSharedCoursesHandler(clientB, clientC));
+        .register(Command.FETCH_SHARED_COURSES, new FetchSharedCoursesHandler(clientB, clientC))
+        .register(Command.CROSS_ENROLL, new CrossEnrollHandler(clientA, clientB, clientC));
     IntegrationServer server = new IntegrationServer(port, router);
     server.serve();
   }

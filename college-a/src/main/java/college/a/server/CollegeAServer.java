@@ -6,6 +6,7 @@ import college.a.dao.AccountDao;
 import college.a.dao.ChoiceDao;
 import college.a.dao.CourseDao;
 import college.a.jdbc.JdbcFactory;
+import college.a.server.handler.ApplyChoiceHandler;
 import college.a.server.handler.EnrollLocalHandler;
 import college.a.server.handler.ListLocalCoursesHandler;
 import college.a.server.handler.ListSharedCoursesHandler;
@@ -79,11 +80,12 @@ public class CollegeAServer implements AutoCloseable {
     CommandRouter router = new CommandRouter()
         .register(Command.LOGIN, new LoginHandler(auth))
         .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
-        .register(Command.ENROLL, new EnrollLocalHandler(courseDao, choiceDao))
+        .register(Command.ENROLL, new EnrollLocalHandler(courseDao, choiceDao, config))
         .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao))
         .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao))
         .register(Command.LIST_SHARED_COURSES,
-            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "A", "/xsl/BtoA.xsl"));
+            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "A", "/xsl/BtoA.xsl"))
+        .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao));
     CollegeAServer server = new CollegeAServer(port, router);
     server.serve();
   }
