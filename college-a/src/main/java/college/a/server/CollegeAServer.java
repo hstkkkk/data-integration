@@ -12,6 +12,7 @@ import college.a.server.handler.ListLocalCoursesHandler;
 import college.a.server.handler.ListSharedCoursesHandler;
 import college.a.server.handler.LoginHandler;
 import college.a.server.handler.AskCourseInfoHandler;
+import college.a.server.handler.RevokeChoiceHandler;
 import college.a.server.handler.WithdrawLocalHandler;
 import college.a.service.AuthService;
 
@@ -81,11 +82,12 @@ public class CollegeAServer implements AutoCloseable {
         .register(Command.LOGIN, new LoginHandler(auth))
         .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
         .register(Command.ENROLL, new EnrollLocalHandler(courseDao, choiceDao, config))
-        .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao))
+        .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao, config))
         .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao))
         .register(Command.LIST_SHARED_COURSES,
             new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "A", "/xsl/BtoA.xsl"))
-        .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao));
+        .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
+        .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao));
     CollegeAServer server = new CollegeAServer(port, router);
     server.serve();
   }

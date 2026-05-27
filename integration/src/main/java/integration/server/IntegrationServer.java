@@ -4,6 +4,7 @@ import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import integration.net.CollegeClient;
 import integration.server.handler.CrossEnrollHandler;
+import integration.server.handler.CrossWithdrawHandler;
 import integration.server.handler.FetchSharedCoursesHandler;
 import integration.server.handler.PingHandler;
 
@@ -68,7 +69,8 @@ public class IntegrationServer implements AutoCloseable {
     IntegrationRouter router = new IntegrationRouter()
         .register(Command.PING, new PingHandler())
         .register(Command.FETCH_SHARED_COURSES, new FetchSharedCoursesHandler(clientB, clientC))
-        .register(Command.CROSS_ENROLL, new CrossEnrollHandler(clientA, clientB, clientC));
+        .register(Command.CROSS_ENROLL, new CrossEnrollHandler(clientA, clientB, clientC))
+        .register(Command.CROSS_WITHDRAW, new CrossWithdrawHandler(clientA, clientB, clientC));
     IntegrationServer server = new IntegrationServer(port, router);
     server.serve();
   }

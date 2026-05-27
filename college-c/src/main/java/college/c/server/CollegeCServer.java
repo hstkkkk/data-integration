@@ -10,6 +10,7 @@ import college.c.server.handler.ListLocalCoursesHandler;
 import college.c.server.handler.ListSharedCoursesHandler;
 import college.c.server.handler.LoginHandler;
 import college.c.server.handler.AskCourseInfoHandler;
+import college.c.server.handler.RevokeChoiceHandler;
 import college.c.server.handler.WithdrawLocalHandler;
 import college.c.service.AuthService;
 import cn.edu.di.protocol.Command;
@@ -74,11 +75,12 @@ public class CollegeCServer implements AutoCloseable {
         .register(Command.LOGIN, new LoginHandler(new AuthService(accountDao)))
         .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
         .register(Command.ENROLL, new EnrollLocalHandler(courseDao, choiceDao, config))
-        .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao))
+        .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao, config))
         .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao))
         .register(Command.LIST_SHARED_COURSES,
             new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "C", "/xsl/AtoC.xsl"))
-        .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao));
+        .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
+        .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao));
 
     try (var srv = new CollegeCServer(port, router)) {
       System.out.println("College C server listening on " + srv.getPort());
