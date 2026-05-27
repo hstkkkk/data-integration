@@ -9,6 +9,7 @@ import college.a.jdbc.JdbcFactory;
 import college.a.server.handler.EnrollLocalHandler;
 import college.a.server.handler.ListLocalCoursesHandler;
 import college.a.server.handler.LoginHandler;
+import college.a.server.handler.AskCourseInfoHandler;
 import college.a.server.handler.WithdrawLocalHandler;
 import college.a.service.AuthService;
 
@@ -78,7 +79,8 @@ public class CollegeAServer implements AutoCloseable {
         .register(Command.LOGIN, new LoginHandler(auth))
         .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
         .register(Command.ENROLL, new EnrollLocalHandler(courseDao, choiceDao))
-        .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao));
+        .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao))
+        .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao));
     CollegeAServer server = new CollegeAServer(port, router);
     server.serve();
   }
