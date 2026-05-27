@@ -143,10 +143,14 @@ public class CourseListFrame extends JFrame {
             statusLabel.setText(label + "成功: " + studentId.trim() + " / " + courseId);
             JOptionPane.showMessageDialog(this, label + "成功", "提示",
                 JOptionPane.INFORMATION_MESSAGE);
-          } else {
+          } else if (res.command() == Command.ERR) {
             String detail = parseErrorDetail(res.payload());
             statusLabel.setText(label + "失败: " + detail);
             JOptionPane.showMessageDialog(this, label + "失败: " + detail, "错误",
+                JOptionPane.ERROR_MESSAGE);
+          } else {
+            statusLabel.setText(label + "失败: 未知响应");
+            JOptionPane.showMessageDialog(this, label + "失败: 未知响应", "错误",
                 JOptionPane.ERROR_MESSAGE);
           }
           setButtonsEnabled(true);
@@ -155,6 +159,8 @@ public class CourseListFrame extends JFrame {
         SwingUtilities.invokeLater(() -> {
           statusLabel.setText("网络错误: " + e.getMessage());
           setButtonsEnabled(true);
+          JOptionPane.showMessageDialog(this,
+              "网络错误: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
         });
       }
     }).start();
