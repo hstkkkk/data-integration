@@ -85,8 +85,8 @@ sequenceDiagram
     CA->>SA: LIST_SHARED_COURSES
     Note over CA,SA: 客户端请求共享课程
 
-    SA->>IS: FETCH_SHARED_COURSES<br/>&lt;from&gt;A&lt;/from&gt;
-    Note over SA,IS: A Server 委托集成服务器
+    SA->>IS: FETCH_SHARED_COURSES
+    Note over SA,IS: payload: from=A
 
     par 向 B 和 C 拉取课程
         IS->>SB: ASK_COURSE_INFO
@@ -129,12 +129,13 @@ sequenceDiagram
     Note over CA,SA: 学生选 B 院共享课
 
     SA->>SA: 检测前缀: "BC" ≠ "AC"<br/>→ 跨院选课
-    SA->>IS: CROSS_ENROLL<br/>&lt;crossEnroll&gt;<br/>courseId/studentId/fromCollege<br/>&lt;/crossEnroll&gt;
+    SA->>IS: CROSS_ENROLL<br/>courseId/studentId/fromCollege
+    Note over SA,IS: payload: crossEnroll XML
 
     IS->>IS: 按课程编号前缀 "BC"<br/>路由到 College B
 
-    IS->>SB: APPLY_CHOICE<br/>（目标院格式 payload）
-    Note over IS,SB: 包含 studentId + courseId<br/>+ 来源学院标记
+    IS->>SB: APPLY_CHOICE<br/>目标院格式 payload
+    Note over IS,SB: studentId + courseId<br/>+ 来源学院标记
 
     SB->>DB: INSERT INTO 选课<br/>学号=AS001, 课程编号=BC003
     DB-->>SB: OK
@@ -168,11 +169,12 @@ sequenceDiagram
     CA->>SA: WITHDRAW<br/>课程编号=BC003, 学生编号=AS001
 
     SA->>SA: 检测前缀: "BC" ≠ "AC"<br/>→ 跨院退课
-    SA->>IS: CROSS_WITHDRAW<br/>&lt;crossWithdraw&gt;<br/>courseId/studentId/fromCollege<br/>&lt;/crossWithdraw&gt;
+    SA->>IS: CROSS_WITHDRAW<br/>courseId/studentId/fromCollege
+    Note over SA,IS: payload: crossWithdraw XML
 
     IS->>IS: 按前缀 "BC" 路由到 B
 
-    IS->>SB: REVOKE_CHOICE<br/>（目标院格式 payload）
+    IS->>SB: REVOKE_CHOICE<br/>目标院格式 payload
 
     SB->>DB: DELETE FROM 选课<br/>WHERE 学号=AS001 AND 课程编号=BC003
     DB-->>SB: OK
