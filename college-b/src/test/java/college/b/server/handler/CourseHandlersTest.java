@@ -2,6 +2,7 @@ package college.b.server.handler;
 
 import college.b.dao.ChoiceDao;
 import college.b.dao.CourseDao;
+import college.b.server.CollegeServerConfig;
 import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class CourseHandlersTest {
+
+  private static final CollegeServerConfig CONFIG =
+      new CollegeServerConfig("B", "BC", "BS");
+
   @Test
   void list_local_returns_b_format_xml() {
     var dao = mock(CourseDao.class);
@@ -30,7 +35,7 @@ class CourseHandlersTest {
         new CourseDao.Row("BC001", "数据库", 32, new BigDecimal("3.0"), "李老师", "B101", false)));
     when(choiceDao.exists("BS001", "BC001")).thenReturn(false);
 
-    var res = new EnrollLocalHandler(courseDao, choiceDao).handle(
+    var res = new EnrollLocalHandler(courseDao, choiceDao, CONFIG).handle(
         new Message(Command.ENROLL, "r1",
             "<选课><课程编号>BC001</课程编号><学号>BS001</学号></选课>"));
     assertEquals(Command.OK, res.command());
@@ -43,7 +48,7 @@ class CourseHandlersTest {
     var courseDao = mock(CourseDao.class);
     var choiceDao = mock(ChoiceDao.class);
     when(courseDao.findById("BC999")).thenReturn(Optional.empty());
-    var res = new EnrollLocalHandler(courseDao, choiceDao).handle(
+    var res = new EnrollLocalHandler(courseDao, choiceDao, CONFIG).handle(
         new Message(Command.ENROLL, "r1",
             "<选课><课程编号>BC999</课程编号><学号>BS001</学号></选课>"));
     assertEquals(Command.ERR, res.command());
@@ -57,7 +62,7 @@ class CourseHandlersTest {
     when(courseDao.findById("BC001")).thenReturn(Optional.of(
         new CourseDao.Row("BC001", "数据库", 32, new BigDecimal("3.0"), "李老师", "B101", false)));
     when(choiceDao.exists("BS001", "BC001")).thenReturn(true);
-    var res = new EnrollLocalHandler(courseDao, choiceDao).handle(
+    var res = new EnrollLocalHandler(courseDao, choiceDao, CONFIG).handle(
         new Message(Command.ENROLL, "r1",
             "<选课><课程编号>BC001</课程编号><学号>BS001</学号></选课>"));
     assertEquals(Command.ERR, res.command());
@@ -68,7 +73,7 @@ class CourseHandlersTest {
   void withdraw_success_returns_ok() {
     var dao = mock(ChoiceDao.class);
     when(dao.withdraw("BS001", "BC001")).thenReturn(1);
-    var res = new WithdrawLocalHandler(dao).handle(
+    var res = new WithdrawLocalHandler(dao, CONFIG).handle(
         new Message(Command.WITHDRAW, "r1",
             "<选课><课程编号>BC001</课程编号><学号>BS001</学号></选课>"));
     assertEquals(Command.OK, res.command());
@@ -78,7 +83,7 @@ class CourseHandlersTest {
   void withdraw_returns_err_when_no_record() {
     var dao = mock(ChoiceDao.class);
     when(dao.withdraw("BS001", "BC001")).thenReturn(0);
-    var res = new WithdrawLocalHandler(dao).handle(
+    var res = new WithdrawLocalHandler(dao, CONFIG).handle(
         new Message(Command.WITHDRAW, "r1",
             "<选课><课程编号>BC001</课程编号><学号>BS001</学号></选课>"));
     assertEquals(Command.ERR, res.command());

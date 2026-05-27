@@ -4,6 +4,7 @@ import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import college.a.dao.ChoiceDao;
 import college.a.dao.CourseDao;
+import college.a.server.CollegeServerConfig;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -15,6 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 class CourseHandlersTest {
+
+  private static final CollegeServerConfig CONFIG =
+      new CollegeServerConfig("A", "AC", "AS");
 
   @Test
   void list_local_returns_a_format_xml() {
@@ -39,7 +43,7 @@ class CourseHandlersTest {
     var choiceDao = mock(ChoiceDao.class);
     when(choiceDao.exists("AS001", "AC001")).thenReturn(false);
     when(choiceDao.enrollLocal("AS001", "AC001")).thenReturn(1);
-    var h = new EnrollLocalHandler(courseDao, choiceDao);
+    var h = new EnrollLocalHandler(courseDao, choiceDao, CONFIG);
 
     var res = h.handle(new Message(Command.ENROLL, "r2",
         "<选课><课程编号>AC001</课程编号><学生编号>AS001</学生编号></选课>"));
@@ -57,7 +61,7 @@ class CourseHandlersTest {
             "Prof. Li", "Room 101", false)));
     var choiceDao = mock(ChoiceDao.class);
     when(choiceDao.exists("AS001", "AC001")).thenReturn(true);
-    var h = new EnrollLocalHandler(courseDao, choiceDao);
+    var h = new EnrollLocalHandler(courseDao, choiceDao, CONFIG);
 
     var res = h.handle(new Message(Command.ENROLL, "r3",
         "<选课><课程编号>AC001</课程编号><学生编号>AS001</学生编号></选课>"));
@@ -70,7 +74,7 @@ class CourseHandlersTest {
   void withdraw_returns_err_when_no_record() {
     var choiceDao = mock(ChoiceDao.class);
     when(choiceDao.withdraw("AS001", "AC001")).thenReturn(0);
-    var h = new WithdrawLocalHandler(choiceDao);
+    var h = new WithdrawLocalHandler(choiceDao, CONFIG);
 
     var res = h.handle(new Message(Command.WITHDRAW, "r4",
         "<选课><课程编号>AC001</课程编号><学生编号>AS001</学生编号></选课>"));
@@ -84,7 +88,7 @@ class CourseHandlersTest {
     var courseDao = mock(CourseDao.class);
     when(courseDao.findById("AC001")).thenReturn(Optional.empty());
     var choiceDao = mock(ChoiceDao.class);
-    var h = new EnrollLocalHandler(courseDao, choiceDao);
+    var h = new EnrollLocalHandler(courseDao, choiceDao, CONFIG);
 
     var res = h.handle(new Message(Command.ENROLL, "r5",
         "<选课><课程编号>AC001</课程编号><学生编号>AS001</学生编号></选课>"));
@@ -97,7 +101,7 @@ class CourseHandlersTest {
   void withdraw_success_returns_ok() {
     var choiceDao = mock(ChoiceDao.class);
     when(choiceDao.withdraw("AS001", "AC001")).thenReturn(1);
-    var h = new WithdrawLocalHandler(choiceDao);
+    var h = new WithdrawLocalHandler(choiceDao, CONFIG);
 
     var res = h.handle(new Message(Command.WITHDRAW, "r6",
         "<选课><课程编号>AC001</课程编号><学生编号>AS001</学生编号></选课>"));
@@ -110,7 +114,7 @@ class CourseHandlersTest {
   void enroll_bad_payload_returns_err() {
     var courseDao = mock(CourseDao.class);
     var choiceDao = mock(ChoiceDao.class);
-    var h = new EnrollLocalHandler(courseDao, choiceDao);
+    var h = new EnrollLocalHandler(courseDao, choiceDao, CONFIG);
 
     var res = h.handle(new Message(Command.ENROLL, "r7", "not valid xml"));
 
