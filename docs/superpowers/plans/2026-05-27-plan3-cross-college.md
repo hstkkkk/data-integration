@@ -904,23 +904,399 @@ git commit -m "feat(cross): cross-college enroll via integration server"
 ## Task 7: 跨院退课 — CROSS_WITHDRAW + REVOKE_CHOICE 流程
 
 **Files:**
-- Modify: `college-a/src/main/java/college/a/server/handler/WithdrawLocalHandler.java` → 加跨院判定
+- Modify: 三院 `College{A,B,C}/.../handler/WithdrawLocalHandler.java`(加 config + 跨院转发)
+- Create: 三院 `College{A,B,C}/.../handler/RevokeChoiceHandler.java`
 - Create: `integration/src/main/java/integration/server/handler/CrossWithdrawHandler.java`
-- Create: `college-a/src/main/java/college/a/server/handler/RevokeChoiceHandler.java`
+- Modify: 三院 `College{A,B,C}Server.java`(传 config 给 WithdrawLocalHandler;注册 REVOKE_CHOICE)
+- Modify: `integration/src/main/java/integration/server/IntegrationServer.java`(注册 CROSS_WITHDRAW)
 
-与选课对称：跨院退课 → Integration → `REVOKE_CHOICE` → 目标院删除选课。
+与 Task 6 对称：源院收到 `WITHDRAW` → 看课程编号前缀 → 本院则原地处理；跨院则改写 payload 为统一 `<crossWithdraw>` 格式 → 发 `CROSS_WITHDRAW` 给 Integration → Integration 看 courseId 前缀 → 发 `REVOKE_CHOICE` 给目标院 → 目标院删除选课记录。
 
-退课需要查选课记录的来源：如果 `origin` 不是本院 → 跨院退课流程。
+统一 payload 格式（与 Task 6 同构，仅根标签和命令不同）：
 
-- [ ] **Step 1: 在 WithdrawHandler 中加跨院路由**
+```xml
+<crossWithdraw>
+  <courseId>BC001</courseId>
+  <studentId>AS001</studentId>
+  <fromCollege>A</fromCollege>
+</crossWithdraw>
+```
 
-修改 withdraw handler：根据 courseId 前缀判断。跨院课程 → 发 `CROSS_WITHDRAW` 给 Integration Server。
+- [ ] **Step 1: 覆盖三院 WithdrawLocalHandler — 加 config + 跨院转发**
 
-- [ ] **Step 2: 实现 CrossWithdrawHandler + RevokeChoiceHandler**
+A 院 (`college-a/src/main/java/college/a/server/handler/WithdrawLocalHandler.java`,完全覆盖)：
 
-Integration Server 收到 `CROSS_WITHDRAW` → 路由到目标院 `REVOKE_CHOICE` → 目标院删除选课记录。
+```java
+package college.a.server.handler;
 
-- [ ] **Step 3: commit**
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlException;
+import cn.edu.di.xml.XmlIO;
+import college.a.dao.ChoiceDao;
+import college.a.server.CollegeServerConfig;
+import org.dom4j.Document;
+import org.dom4j.Element;
+
+import java.net.Socket;
+import java.util.UUID;
+
+public class WithdrawLocalHandler implements Handler {
+
+  private final ChoiceDao choiceDao;
+  private final CollegeServerConfig config;
+
+  public WithdrawLocalHandler(ChoiceDao choiceDao, CollegeServerConfig config) {
+    this.choiceDao = choiceDao;
+    this.config = config;
+  }
+
+  @Override
+  public Message handle(Message request) {
+    try {
+      Document doc = XmlIO.parse(request.payload());
+      Element root = doc.getRootElement();
+      String courseId = root.elementText("课程编号");
+      String studentId = root.elementText("学生编号");
+
+      if (!config.isLocalCourse(courseId)) {
+        return forwardCrossWithdraw(request, courseId, studentId);
+      }
+
+      int rows = choiceDao.withdraw(studentId, courseId);
+      if (rows == 0) {
+        return Message.err(request.requestId(), "NO_SUCH_CHOICE",
+            "no enrollment record found");
+      }
+      return Message.ok(request.requestId(), "");
+    } catch (XmlException e) {
+      return Message.err(request.requestId(), "BAD_PAYLOAD",
+          "invalid XML: " + e.getMessage());
+    } catch (Exception e) {
+      return Message.err(request.requestId(), "INTERNAL_ERROR",
+          "withdraw failed: " + e.getMessage());
+    }
+  }
+
+  private Message forwardCrossWithdraw(Message req, String courseId, String studentId) {
+    String payload = "<crossWithdraw>"
+        + "<courseId>" + courseId + "</courseId>"
+        + "<studentId>" + studentId + "</studentId>"
+        + "<fromCollege>" + config.collegeCode + "</fromCollege>"
+        + "</crossWithdraw>";
+    try (var sock = new Socket(config.integrationHost, config.integrationPort)) {
+      Message.write(sock.getOutputStream(),
+          new Message(Command.CROSS_WITHDRAW, UUID.randomUUID().toString(), payload));
+      return Message.read(sock.getInputStream());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+B 院 (`college-b/.../WithdrawLocalHandler.java`,完全覆盖)：
+
+```java
+package college.b.server.handler;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.b.dao.ChoiceDao;
+import college.b.server.CollegeServerConfig;
+
+import java.net.Socket;
+import java.util.UUID;
+
+public class WithdrawLocalHandler implements Handler {
+  private final ChoiceDao choiceDao;
+  private final CollegeServerConfig config;
+
+  public WithdrawLocalHandler(ChoiceDao choiceDao, CollegeServerConfig config) {
+    this.choiceDao = choiceDao;
+    this.config = config;
+  }
+
+  @Override
+  public Message handle(Message request) {
+    try {
+      var doc = XmlIO.parse(request.payload());
+      String courseId = doc.getRootElement().elementText("课程编号");
+      String studentId = doc.getRootElement().elementText("学号");
+
+      if (!config.isLocalCourse(courseId)) {
+        return forwardCrossWithdraw(request, courseId, studentId);
+      }
+
+      int rows = choiceDao.withdraw(studentId, courseId);
+      return rows == 1
+          ? Message.ok(request.requestId(), "")
+          : Message.err(request.requestId(), "NO_SUCH_CHOICE", studentId + "/" + courseId);
+    } catch (Exception e) {
+      return Message.err(request.requestId(), "BAD_PAYLOAD", e.getMessage());
+    }
+  }
+
+  private Message forwardCrossWithdraw(Message req, String courseId, String studentId) {
+    String payload = "<crossWithdraw>"
+        + "<courseId>" + courseId + "</courseId>"
+        + "<studentId>" + studentId + "</studentId>"
+        + "<fromCollege>" + config.collegeCode + "</fromCollege>"
+        + "</crossWithdraw>";
+    try (var sock = new Socket(config.integrationHost, config.integrationPort)) {
+      Message.write(sock.getOutputStream(),
+          new Message(Command.CROSS_WITHDRAW, UUID.randomUUID().toString(), payload));
+      return Message.read(sock.getInputStream());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+C 院 (`college-c/.../WithdrawLocalHandler.java`,完全覆盖)：
+
+```java
+package college.c.server.handler;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.c.dao.ChoiceDao;
+import college.c.server.CollegeServerConfig;
+
+import java.net.Socket;
+import java.util.UUID;
+
+public class WithdrawLocalHandler implements Handler {
+  private final ChoiceDao choiceDao;
+  private final CollegeServerConfig config;
+
+  public WithdrawLocalHandler(ChoiceDao choiceDao, CollegeServerConfig config) {
+    this.choiceDao = choiceDao;
+    this.config = config;
+  }
+
+  @Override
+  public Message handle(Message request) {
+    try {
+      var doc = XmlIO.parse(request.payload());
+      String courseId = doc.getRootElement().elementText("Cno");
+      String studentId = doc.getRootElement().elementText("Sno");
+
+      if (!config.isLocalCourse(courseId)) {
+        return forwardCrossWithdraw(request, courseId, studentId);
+      }
+
+      int rows = choiceDao.withdraw(studentId, courseId);
+      return rows == 1
+          ? Message.ok(request.requestId(), "")
+          : Message.err(request.requestId(), "NO_SUCH_CHOICE", studentId + "/" + courseId);
+    } catch (Exception e) {
+      return Message.err(request.requestId(), "BAD_PAYLOAD", e.getMessage());
+    }
+  }
+
+  private Message forwardCrossWithdraw(Message req, String courseId, String studentId) {
+    String payload = "<crossWithdraw>"
+        + "<courseId>" + courseId + "</courseId>"
+        + "<studentId>" + studentId + "</studentId>"
+        + "<fromCollege>" + config.collegeCode + "</fromCollege>"
+        + "</crossWithdraw>";
+    try (var sock = new Socket(config.integrationHost, config.integrationPort)) {
+      Message.write(sock.getOutputStream(),
+          new Message(Command.CROSS_WITHDRAW, UUID.randomUUID().toString(), payload));
+      return Message.read(sock.getInputStream());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+- [ ] **Step 2: 创建 integration CrossWithdrawHandler.java**
+
+```java
+package integration.server.handler;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import integration.net.CollegeClient;
+
+import java.util.UUID;
+
+public class CrossWithdrawHandler implements Handler {
+
+  private final CollegeClient clientA;
+  private final CollegeClient clientB;
+  private final CollegeClient clientC;
+
+  public CrossWithdrawHandler(CollegeClient clientA, CollegeClient clientB, CollegeClient clientC) {
+    this.clientA = clientA;
+    this.clientB = clientB;
+    this.clientC = clientC;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      var doc = XmlIO.parse(req.payload());
+      String courseId = doc.getRootElement().elementText("courseId");
+
+      CollegeClient target = targetFor(courseId);
+      if (target == null) return Message.err(req.requestId(), "UNKNOWN_COURSE", courseId);
+
+      Message revoke = target.send(new Message(Command.REVOKE_CHOICE,
+          UUID.randomUUID().toString(), req.payload()));
+      return revoke.command() == Command.OK
+          ? Message.ok(req.requestId(), revoke.payload())
+          : Message.err(req.requestId(), "TARGET_REJECTED", revoke.payload());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "CROSS_FAILED", e.getMessage());
+    }
+  }
+
+  private CollegeClient targetFor(String courseId) {
+    if (courseId == null) return null;
+    if (courseId.startsWith("AC")) return clientA;
+    if (courseId.startsWith("BC")) return clientB;
+    if (courseId.startsWith("CC")) return clientC;
+    return null;
+  }
+}
+```
+
+- [ ] **Step 3: 创建三院 RevokeChoiceHandler.java**
+
+A 院 (`college-a/.../handler/RevokeChoiceHandler.java`,新建)：
+
+```java
+package college.a.server.handler;
+
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.a.dao.ChoiceDao;
+import org.dom4j.Element;
+
+public class RevokeChoiceHandler implements Handler {
+  private final ChoiceDao choiceDao;
+
+  public RevokeChoiceHandler(ChoiceDao choiceDao) {
+    this.choiceDao = choiceDao;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      Element root = XmlIO.parse(req.payload()).getRootElement();
+      String courseId = root.elementText("courseId");
+      String studentId = root.elementText("studentId");
+
+      int rows = choiceDao.withdraw(studentId, courseId);
+      return rows == 1
+          ? Message.ok(req.requestId(), "")
+          : Message.err(req.requestId(), "NO_SUCH_CHOICE", studentId + "/" + courseId);
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "REVOKE_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+B 院 (`college-b/.../RevokeChoiceHandler.java`,与 A 同构,仅 package 与 import 不同)：
+
+```java
+package college.b.server.handler;
+
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.b.dao.ChoiceDao;
+import org.dom4j.Element;
+
+public class RevokeChoiceHandler implements Handler {
+  private final ChoiceDao choiceDao;
+
+  public RevokeChoiceHandler(ChoiceDao choiceDao) {
+    this.choiceDao = choiceDao;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      Element root = XmlIO.parse(req.payload()).getRootElement();
+      String courseId = root.elementText("courseId");
+      String studentId = root.elementText("studentId");
+
+      int rows = choiceDao.withdraw(studentId, courseId);
+      return rows == 1
+          ? Message.ok(req.requestId(), "")
+          : Message.err(req.requestId(), "NO_SUCH_CHOICE", studentId + "/" + courseId);
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "REVOKE_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+C 院 (`college-c/.../RevokeChoiceHandler.java`,新建)：
+
+```java
+package college.c.server.handler;
+
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.c.dao.ChoiceDao;
+import org.dom4j.Element;
+
+public class RevokeChoiceHandler implements Handler {
+  private final ChoiceDao choiceDao;
+
+  public RevokeChoiceHandler(ChoiceDao choiceDao) {
+    this.choiceDao = choiceDao;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      Element root = XmlIO.parse(req.payload()).getRootElement();
+      String courseId = root.elementText("courseId");
+      String studentId = root.elementText("studentId");
+
+      int rows = choiceDao.withdraw(studentId, courseId);
+      return rows == 1
+          ? Message.ok(req.requestId(), "")
+          : Message.err(req.requestId(), "NO_SUCH_CHOICE", studentId + "/" + courseId);
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "REVOKE_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+- [ ] **Step 4: 三院 main 调整 WithdrawLocalHandler 构造参数 + 注册 REVOKE_CHOICE**
+
+每院：
+1. `new WithdrawLocalHandler(choiceDao)` → `new WithdrawLocalHandler(choiceDao, config)`
+2. 链尾追加 `.register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))`
+3. main 顶部加 `import college.{a,b,c}.server.handler.RevokeChoiceHandler;`
+
+- [ ] **Step 5: IntegrationServer.main 注册 CROSS_WITHDRAW**
+
+链尾追加：
+```java
+.register(Command.CROSS_WITHDRAW, new CrossWithdrawHandler(clientA, clientB, clientC));
+```
+顶部加 `import integration.server.handler.CrossWithdrawHandler;`
+
+- [ ] **Step 6: 编译 + commit**
+
+```bash
+mvn -q -DskipTests compile
+git add college-a/src/ college-b/src/ college-c/src/ integration/src/
+git commit -m "feat(cross): cross-college withdraw via integration server"
+```
 
 ---
 
