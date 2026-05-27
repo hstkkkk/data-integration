@@ -69,6 +69,7 @@ public class CollegeAServer implements AutoCloseable {
   public static void main(String[] args) throws Exception {
     int port = Integer.parseInt(System.getProperty("port", "9001"));
     DataSource ds = JdbcFactory.fromClasspath("/db.properties");
+    var config = new CollegeServerConfig("A", "AC", "AS");
     AccountDao accountDao = new AccountDao(ds);
     CourseDao courseDao = new CourseDao(ds);
     ChoiceDao choiceDao = new ChoiceDao(ds);
