@@ -6,8 +6,8 @@
         <xs:complexType><xs:sequence>
           <xs:element name="id"       type="xs:string"/>
           <xs:element name="name"     type="xs:string"/>
-          <xs:element name="time"     type="xs:unsignedByte"/>
-          <xs:element name="score"    type="xs:unsignedByte"/>
+          <xs:element name="time"     type="xs:decimal"/>
+          <xs:element name="score"    type="xs:decimal"/>
           <xs:element name="teacher"  type="xs:string"/>
           <xs:element name="location" type="xs:string"/>
           <xs:element name="share">
