@@ -97,13 +97,13 @@ sequenceDiagram
         Note over IS,SC: Cno/Cnm/Ctm/Cpt/Tec/Pla/Share
     end
 
-    Note over IS: 1. formatB.xsl → 统一格式<br/>2. formatC.xsl → 统一格式<br/>3. formatClass.xsd 验证<br/>4. 合并为统一 &lt;classes&gt;
+    Note over IS: formatB.xsl, formatC.xsl<br/>→ 统一格式<br/>→ formatClass.xsd 验证<br/>→ 合并
 
     IS-->>SA: 合并后的统一格式 XML
-    Note over SA: unifiedToA.xsl<br/>统一格式 → A 院格式
+    Note over SA: unifiedToA.xsl<br/>转回 A 院格式
 
     SA-->>CA: OK + A 院格式课程列表
-    Note over CA: 客户端展示共享课程<br/>（含 B/C 的 share='Y' 课程）
+    Note over CA: 客户端展示共享课程<br/>含 B/C 的 share=Y 课程
 ```
 
 **关键技术点：**
