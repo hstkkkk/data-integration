@@ -28,7 +28,7 @@ public class FetchSharedCoursesHandler implements Handler {
     try {
       String fromCollege = parseFromCollege(req.payload());
       Document merged = DocumentHelper.createDocument();
-      Element root = merged.addElement("合并课程");
+      Element root = merged.addElement("classes");
 
       if (!"B".equals(fromCollege)) {
         collectFromCollege(root, clientB, "B",
