@@ -2043,32 +2043,168 @@ git commit -m "feat(client): shared courses + cross-college enroll/withdraw + gl
 ## Task 10: Integration Server 端到端集成测试
 
 **Files:**
-- Create: `integration/src/test/java/integration/server/CrossCollegeIT.java`
+- Create: `integration/src/test/java/integration/server/CrossCollegeFlowsTest.java`
 
-启动三院 Server + Integration Server（在测试中），验证全链路：
-1. A 客户端 LIST_SHARED_COURSES → 看到 B/C 的共享课程
-2. A 学生选 B 课程 → B 的 DB 写入选课记录
-3. A 学生退选 → B 的 DB 删除
-4. STATS_GLOBAL 聚合正确
+**说明：**
+- 文件名用 `*Test.java`（不是 `*IT.java`），原因：surefire 默认仅识别 `*Test/*Tests/*TestCase`；用 `mvn ... test` 即可运行。
+- 不依赖真实数据库或 socket：用 Mockito mock `integration.net.CollegeClient`，把三院的响应静态化；这样能在 `mvn test` 几秒内跑完。
+- 覆盖 4 条用例：
+  1. `CrossEnrollHandler` 按课程编号前缀路由到 clientB（`BC*` → clientB；clientA/clientC 不被调用）
+  2. `CrossEnrollHandler` 未知前缀（`XX*`）返回 `UNKNOWN_COURSE` 错误
+  3. `CrossWithdrawHandler` 按课程编号前缀路由到 clientC（`CC*` → clientC）
+  4. `StatsGlobalHandler` 聚合三院 `<pullData>` 响应（汇总数 + Top5 排序）
+- 不直接测 `FetchSharedCoursesHandler`：它依赖 classpath 上的 `formatB.xsl/formatC.xsl/formatClass.xsd`，且需要构造逼真的 B/C 原始 XML，复杂度高且 Plan 1/2 的单元测试已覆盖 XSL/XSD 工具类。
 
-- [ ] **Step 1: 写端到端测试**
-
-由于需要三院真实 DB（或 mock），测试设计为：用 mock CollegeClient 模拟各院响应。验证 StatsGlobalHandler 聚合逻辑正确性。
+- [ ] **Step 1: 创建 CrossCollegeFlowsTest.java — 完整代码**
 
 ```java
-@Test
-void stats_aggregates_three_colleges() {
+package integration.server;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import integration.net.CollegeClient;
+import integration.server.handler.CrossEnrollHandler;
+import integration.server.handler.CrossWithdrawHandler;
+import integration.server.handler.StatsGlobalHandler;
+import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class CrossCollegeFlowsTest {
+
+  @Test
+  void crossEnroll_routes_by_course_prefix() throws Exception {
     var clientA = mock(CollegeClient.class);
     var clientB = mock(CollegeClient.class);
     var clientC = mock(CollegeClient.class);
-    // Setup mock responses with known student/course/choice counts
-    // Assert aggregated stats match expected
+    when(clientB.send(any())).thenReturn(Message.ok("rid", ""));
+
+    var handler = new CrossEnrollHandler(clientA, clientB, clientC);
+    String payload = "<crossEnroll><courseId>BC001</courseId>"
+        + "<studentId>AS001</studentId><fromCollege>A</fromCollege></crossEnroll>";
+    Message res = handler.handle(new Message(Command.CROSS_ENROLL,
+        UUID.randomUUID().toString(), payload));
+
+    assertEquals(Command.OK, res.command());
+    verify(clientB).send(any());
+    verify(clientA, never()).send(any());
+    verify(clientC, never()).send(any());
+  }
+
+  @Test
+  void crossEnroll_unknown_prefix_returns_err() {
+    var clientA = mock(CollegeClient.class);
+    var clientB = mock(CollegeClient.class);
+    var clientC = mock(CollegeClient.class);
+
+    var handler = new CrossEnrollHandler(clientA, clientB, clientC);
+    String payload = "<crossEnroll><courseId>XX999</courseId>"
+        + "<studentId>AS001</studentId><fromCollege>A</fromCollege></crossEnroll>";
+    Message res = handler.handle(new Message(Command.CROSS_ENROLL,
+        UUID.randomUUID().toString(), payload));
+
+    assertEquals(Command.ERR, res.command());
+    assertTrue(res.payload().contains("UNKNOWN_COURSE"),
+        "expected UNKNOWN_COURSE in payload, got: " + res.payload());
+  }
+
+  @Test
+  void crossWithdraw_routes_by_course_prefix() throws Exception {
+    var clientA = mock(CollegeClient.class);
+    var clientB = mock(CollegeClient.class);
+    var clientC = mock(CollegeClient.class);
+    when(clientC.send(any())).thenReturn(Message.ok("rid", ""));
+
+    var handler = new CrossWithdrawHandler(clientA, clientB, clientC);
+    String payload = "<crossWithdraw><courseId>CC005</courseId>"
+        + "<studentId>BS010</studentId><fromCollege>B</fromCollege></crossWithdraw>";
+    Message res = handler.handle(new Message(Command.CROSS_WITHDRAW,
+        UUID.randomUUID().toString(), payload));
+
+    assertEquals(Command.OK, res.command());
+    verify(clientC).send(any());
+    verify(clientA, never()).send(any());
+    verify(clientB, never()).send(any());
+  }
+
+  @Test
+  void statsGlobal_aggregates_three_colleges() throws Exception {
+    var clientA = mock(CollegeClient.class);
+    var clientB = mock(CollegeClient.class);
+    var clientC = mock(CollegeClient.class);
+    when(clientA.send(any())).thenReturn(Message.ok("rid",
+        pullReply("A", 50, 10, 3, 5,
+            "AC001", "课程一", 30, "AC002", "课程二", 20)));
+    when(clientB.send(any())).thenReturn(Message.ok("rid",
+        pullReply("B", 50, 10, 4, 7,
+            "BC001", "课程三", 28, "BC002", "课程四", 18)));
+    when(clientC.send(any())).thenReturn(Message.ok("rid",
+        pullReply("C", 50, 10, 2, 0,
+            "CC001", "课程五", 25, "CC002", "课程六", 15)));
+
+    var handler = new StatsGlobalHandler(clientA, clientB, clientC);
+    Message res = handler.handle(new Message(Command.STATS_GLOBAL,
+        UUID.randomUUID().toString(), ""));
+
+    assertEquals(Command.OK, res.command());
+    String xml = res.payload();
+    assertTrue(xml.contains("<totalStudents>150</totalStudents>"), xml);
+    assertTrue(xml.contains("<totalCourses>30</totalCourses>"), xml);
+    assertTrue(xml.contains("<totalSharedCourses>9</totalSharedCourses>"), xml);
+    assertTrue(xml.contains("<crossEnrollments>12</crossEnrollments>"), xml);
+
+    int topIdx = xml.indexOf("<topCourses>");
+    assertTrue(topIdx > 0, "topCourses section missing");
+    String topSection = xml.substring(topIdx);
+    int idxAC001 = topSection.indexOf("id=\"AC001\"");
+    int idxBC001 = topSection.indexOf("id=\"BC001\"");
+    assertTrue(idxAC001 > 0 && idxBC001 > 0, "Top entries missing: " + topSection);
+    assertTrue(idxAC001 < idxBC001,
+        "AC001(30) should rank before BC001(28) in: " + topSection);
+  }
+
+  private static String pullReply(String code, int students, int courses,
+                                  int shared, int cross,
+                                  String c1Id, String c1Name, int c1Enr,
+                                  String c2Id, String c2Name, int c2Enr) {
+    return "<pullData college=\"" + code + "\">"
+        + "<studentCount>" + students + "</studentCount>"
+        + "<courseCount>" + courses + "</courseCount>"
+        + "<sharedCount>" + shared + "</sharedCount>"
+        + "<crossEnrollmentCount>" + cross + "</crossEnrollmentCount>"
+        + "<courses>"
+        + "<course id=\"" + c1Id + "\" name=\"" + c1Name
+        + "\" enrollments=\"" + c1Enr + "\"/>"
+        + "<course id=\"" + c2Id + "\" name=\"" + c2Name
+        + "\" enrollments=\"" + c2Enr + "\"/>"
+        + "</courses>"
+        + "</pullData>";
+  }
 }
 ```
 
-Run: `mvn -pl integration -am test`
+- [ ] **Step 2: 运行测试**
 
-- [ ] **Step 2: commit**
+```bash
+mvn -pl integration -am -q test
+```
+
+预期：4/4 通过，BUILD SUCCESS。
+
+- [ ] **Step 3: commit**
+
+```bash
+git add integration/src/test/java/integration/server/CrossCollegeFlowsTest.java
+git commit -m "test(integration): cross-college routing + global stats aggregation"
+```
 
 ---
 
