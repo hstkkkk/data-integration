@@ -5,6 +5,7 @@ import cn.edu.di.protocol.Message;
 import college.a.dao.AccountDao;
 import college.a.dao.ChoiceDao;
 import college.a.dao.CourseDao;
+import college.a.dao.StudentDao;
 import college.a.jdbc.JdbcFactory;
 import college.a.server.handler.ApplyChoiceHandler;
 import college.a.server.handler.EnrollLocalHandler;
@@ -13,6 +14,8 @@ import college.a.server.handler.ListSharedCoursesHandler;
 import college.a.server.handler.LoginHandler;
 import college.a.server.handler.AskCourseInfoHandler;
 import college.a.server.handler.RevokeChoiceHandler;
+import college.a.server.handler.StatsForwardHandler;
+import college.a.server.handler.StatsPullHandler;
 import college.a.server.handler.WithdrawLocalHandler;
 import college.a.service.AuthService;
 
@@ -77,6 +80,7 @@ public class CollegeAServer implements AutoCloseable {
     AccountDao accountDao = new AccountDao(ds);
     CourseDao courseDao = new CourseDao(ds);
     ChoiceDao choiceDao = new ChoiceDao(ds);
+    StudentDao studentDao = new StudentDao(ds);
     AuthService auth = new AuthService(accountDao);
     CommandRouter router = new CommandRouter()
         .register(Command.LOGIN, new LoginHandler(auth))
@@ -87,7 +91,9 @@ public class CollegeAServer implements AutoCloseable {
         .register(Command.LIST_SHARED_COURSES,
             new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "A", "/xsl/BtoA.xsl"))
         .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
-        .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao));
+        .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))
+        .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))
+        .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config));
     CollegeAServer server = new CollegeAServer(port, router);
     server.serve();
   }

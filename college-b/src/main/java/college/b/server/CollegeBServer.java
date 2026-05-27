@@ -3,6 +3,7 @@ package college.b.server;
 import college.b.dao.AccountDao;
 import college.b.dao.ChoiceDao;
 import college.b.dao.CourseDao;
+import college.b.dao.StudentDao;
 import college.b.jdbc.JdbcFactory;
 import college.b.server.handler.ApplyChoiceHandler;
 import college.b.server.handler.EnrollLocalHandler;
@@ -11,6 +12,8 @@ import college.b.server.handler.ListSharedCoursesHandler;
 import college.b.server.handler.LoginHandler;
 import college.b.server.handler.AskCourseInfoHandler;
 import college.b.server.handler.RevokeChoiceHandler;
+import college.b.server.handler.StatsForwardHandler;
+import college.b.server.handler.StatsPullHandler;
 import college.b.server.handler.WithdrawLocalHandler;
 import college.b.service.AuthService;
 import cn.edu.di.protocol.Command;
@@ -72,6 +75,7 @@ public class CollegeBServer implements AutoCloseable {
     var accountDao = new AccountDao(ds);
     var courseDao = new CourseDao(ds);
     var choiceDao = new ChoiceDao(ds);
+    var studentDao = new StudentDao(ds);
 
     var router = new CommandRouter()
         .register(Command.LOGIN, new LoginHandler(new AuthService(accountDao)))
@@ -82,7 +86,9 @@ public class CollegeBServer implements AutoCloseable {
         .register(Command.LIST_SHARED_COURSES,
             new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "B", "/xsl/AtoB.xsl"))
         .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
-        .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao));
+        .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))
+        .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))
+        .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config));
 
     try (var srv = new CollegeBServer(port, router)) {
       System.out.println("College B server listening on " + srv.getPort());
