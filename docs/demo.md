@@ -82,7 +82,7 @@ A、B、C 三院按上述流程各自演示，证明三个 DBMS（SQL Server / O
    - 各院明细：A/B/C 各 students / courses / shared / crossEnrollments
    - Top 5 课程（按选课数降序）
 
-## 4. 关键 XML 资源（10 个 XSL + 1 个 XSD）
+## 4. 关键 XML 资源（10 个 XSL + 3 个 XSD）
 
 | 文件 | 角色 |
 |------|------|
@@ -96,7 +96,9 @@ A、B、C 三院按上述流程各自演示，证明三个 DBMS（SQL Server / O
 | `integration/src/main/resources/xsl/CtoA.xsl` | 统一 → A 院本地（备用） |
 | `integration/src/main/resources/xsl/CtoB.xsl` | 统一 → B 院本地（备用） |
 | `integration/src/main/resources/xsl/identity.xsl` | 身份变换（用于回归测试） |
-| `integration/src/main/resources/schema/formatClass.xsd` | 统一 `<classes>` 格式 XSD 校验 |
+| `common/src/main/resources/schema/formatClass.xsd` | 统一 `<classes>` 课程格式 XSD 校验 |
+| `common/src/main/resources/schema/formatStudent.xsd` | 统一学生格式 XSD 校验 |
+| `common/src/main/resources/schema/formatChoice.xsd` | 统一选课格式 XSD 校验 |
 
 ## 5. 关闭
 
