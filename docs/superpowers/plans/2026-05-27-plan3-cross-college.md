@@ -355,9 +355,16 @@ git commit -m "feat(college): ask course info handler for cross-college sharing"
 
 **Files:**
 - Create: `college-a/src/main/java/college/a/server/handler/ListSharedCoursesHandler.java`
-- Modify: `college-a/src/main/java/college/a/server/CollegeAServer.java`（注册 handler）
+- Create: `college-b/src/main/java/college/b/server/handler/ListSharedCoursesHandler.java`
+- Create: `college-c/src/main/java/college/c/server/handler/ListSharedCoursesHandler.java`
+- Modify: 三院 `College{A,B,C}Server.java`(注册 handler)
 
-客户端请求 `LIST_SHARED_COURSES` → College Server 调用 Integration Server (`FETCH_SHARED_COURSES`) → 获取合并后的课程 XML → 以本院格式返回给客户端。同时将 share='Y' 的跨院课程写入本地 DB（懒缓存）。
+客户端请求 `LIST_SHARED_COURSES` → College Server 调用 Integration Server (`FETCH_SHARED_COURSES`) → 获取合并后的统一格式课程 XML(根 `<classes>`)→ 用对应 XSL 转回本院格式返回。
+
+注：plan 1/2 已就位的 ?toX.xsl(实际语义是 unified→X)如下，按本院代码选择即可：
+- A 院:`/xsl/BtoA.xsl`
+- B 院:`/xsl/AtoB.xsl`
+- C 院:`/xsl/AtoC.xsl`
 
 - [ ] **Step 1: 实现 ListSharedCoursesHandler（A 院）**
 
@@ -367,11 +374,9 @@ package college.a.server.handler;
 
 import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
-import cn.edu.di.xml.XmlIO;
-import cn.edu.di.xml.XsltTransformer;
 import cn.edu.di.xml.XsdValidator;
+import cn.edu.di.xml.XsltTransformer;
 
-import java.io.IOException;
 import java.net.Socket;
 import java.util.UUID;
 
@@ -380,17 +385,19 @@ public class ListSharedCoursesHandler implements Handler {
   private final String integrationHost;
   private final int integrationPort;
   private final String fromCollege;
+  private final String toLocalXsl;
 
-  public ListSharedCoursesHandler(String integrationHost, int integrationPort, String fromCollege) {
+  public ListSharedCoursesHandler(String integrationHost, int integrationPort,
+                                  String fromCollege, String toLocalXsl) {
     this.integrationHost = integrationHost;
     this.integrationPort = integrationPort;
     this.fromCollege = fromCollege;
+    this.toLocalXsl = toLocalXsl;
   }
 
   @Override
   public Message handle(Message req) {
     try (var sock = new Socket(integrationHost, integrationPort)) {
-      // Ask Integration Server for shared courses from other colleges
       Message fetchReq = new Message(Command.FETCH_SHARED_COURSES,
           UUID.randomUUID().toString(), "<from>" + fromCollege + "</from>");
       Message.write(sock.getOutputStream(), fetchReq);
@@ -398,23 +405,12 @@ public class ListSharedCoursesHandler implements Handler {
 
       if (fetchResp.command() != Command.OK) return fetchResp;
 
-      // fetchResp.payload() = unified format XML
-      // Convert to our format using XSL
       String unifiedXml = fetchResp.payload();
-      String xslFile = "/xsl/" + fromCollege + "toA.xsl"; // e.g. BtoA.xsl or CtoA.xsl
-      // Actually, we need a generic approach: "XtoA" where X is the target
-      // For simplicity in Plan 3: handle it per-college with separate XSLs
-      // For now, just return the unified XML wrapped as-is
-      // Full XSL pipeline refined in Task 9
-
-      // Validate unified format
       var result = XsdValidator.fromClasspath("/schema/formatClass.xsd").validate(unifiedXml);
-      if (!result.valid()) return Message.err(req.requestId(), "XML_SCHEMA", result.errors().toString());
-
-      // Transform to local format
-      String toLocalXsl = "/xsl/" + ("A".equals(fromCollege) ? "identity" : "BtoA");
-      String localXml = XsltTransformer.fromClasspath(toLocalXsl + ".xsl").transform(unifiedXml);
-
+      if (!result.valid()) {
+        return Message.err(req.requestId(), "XML_SCHEMA", result.errors().toString());
+      }
+      String localXml = XsltTransformer.fromClasspath(toLocalXsl).transform(unifiedXml);
       return Message.ok(req.requestId(), localXml);
     } catch (Exception e) {
       return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
@@ -423,14 +419,35 @@ public class ListSharedCoursesHandler implements Handler {
 }
 ```
 
-- [ ] **Step 2: 在 CollegeAServer.main() 注册**
+- [ ] **Step 2: 在 College{A,B,C}Server.main() 注册**
 
+A 院:
 ```java
 .register(Command.LIST_SHARED_COURSES,
-    new ListSharedCoursesHandler(config.integrationHost(), config.integrationPort(), "A"))
+    new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "A", "/xsl/BtoA.xsl"))
 ```
 
-- [ ] **Step 3: B/C 院同步实现 + commit**
+B 院:
+```java
+.register(Command.LIST_SHARED_COURSES,
+    new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "B", "/xsl/AtoB.xsl"))
+```
+
+C 院:
+```java
+.register(Command.LIST_SHARED_COURSES,
+    new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "C", "/xsl/AtoC.xsl"))
+```
+
+注意：`config.integrationHost` 和 `config.integrationPort` 是 `public final` 字段（见 Task 2），直接字段访问，不要写括号。
+
+- [ ] **Step 3: 编译验证 + commit**
+
+```bash
+mvn -q -DskipTests compile
+git add college-a/src/ college-b/src/ college-c/src/
+git commit -m "feat(college): list shared courses via integration server with xsl transform"
+```
 
 ---
 
