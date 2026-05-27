@@ -454,59 +454,250 @@ git commit -m "feat(college): list shared courses via integration server with xs
 ## Task 6: 跨院选课 — CROSS_ENROLL + APPLY_CHOICE 流程
 
 **Files:**
-- Modify: `college-a/src/main/java/college/a/server/handler/EnrollLocalHandler.java` → 改为 `EnrollHandler.java`，增加跨院判断
+- Modify: 三院 `College{A,B,C}/.../handler/EnrollLocalHandler.java`(加 config + 跨院转发)
+- Create: 三院 `College{A,B,C}/.../handler/ApplyChoiceHandler.java`
 - Create: `integration/src/main/java/integration/server/handler/CrossEnrollHandler.java`
+- Modify: 三院 `College{A,B,C}Server.java`(传 config 给 EnrollLocalHandler;注册 APPLY_CHOICE)
+- Modify: `integration/src/main/java/integration/server/IntegrationServer.java`(加 clientA;注册 CROSS_ENROLL)
 
-College Server 的 ENROLL handler 检测课程前缀，本院课程走原逻辑，跨院课程 → 发给 Integration Server 的 `CROSS_ENROLL`。
+流程：源院收到 `ENROLL` → 看课程编号前缀 → 本院则原地处理；跨院则**改写** payload 为统一 `<crossEnroll>` 格式 → 发 `CROSS_ENROLL` 给 Integration → Integration 看 courseId 前缀 → 发 `APPLY_CHOICE` 给目标院 → 目标院落库。
 
-Integration Server 的 `CrossEnrollHandler`：
-1. 验证请求（源院 XSD）
-2. 提取学生和选课信息
-3. XSL 转换为目标院格式
-4. 发 `APPLY_CHOICE` 给目标院
-5. 返回结果
+统一 payload 格式（仅用于跨院流程，本院 ENROLL 仍用各院原格式）：
 
-- [ ] **Step 1: 修改 EnrollLocalHandler → 支持跨院路由**
+```xml
+<crossEnroll>
+  <courseId>BC001</courseId>
+  <studentId>AS001</studentId>
+  <fromCollege>A</fromCollege>
+</crossEnroll>
+```
 
-在 A 院的 EnrollHandler 中：
+注意学生表 FK：演示作业范围内，假设各院 `选课` 表对学生编号没有外键约束，跨院学号写入只在 `选课` 行存在；学生信息不复制到目标院。
+
+- [ ] **Step 1: 修改三院 EnrollLocalHandler — 加 config + 跨院转发**
+
+A 院 (`college-a/src/main/java/college/a/server/handler/EnrollLocalHandler.java`,完整覆盖现有文件)：
 
 ```java
-@Override
-public Message handle(Message request) {
-  try {
-    var doc = XmlIO.parse(request.payload());
-    String courseId = doc.getRootElement().elementText("课程编号");
-    String studentId = doc.getRootElement().elementText("学生编号");
+package college.a.server.handler;
 
-    // Check if cross-college
-    if (!config.isLocalCourse(courseId)) {
-      return forwardToIntegration(request);
-    }
-    // ... existing local enroll logic ...
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlException;
+import cn.edu.di.xml.XmlIO;
+import college.a.dao.ChoiceDao;
+import college.a.dao.CourseDao;
+import college.a.server.CollegeServerConfig;
+import org.dom4j.Document;
+import org.dom4j.Element;
+
+import java.net.Socket;
+import java.util.UUID;
+
+public class EnrollLocalHandler implements Handler {
+
+  private final CourseDao courseDao;
+  private final ChoiceDao choiceDao;
+  private final CollegeServerConfig config;
+
+  public EnrollLocalHandler(CourseDao courseDao, ChoiceDao choiceDao, CollegeServerConfig config) {
+    this.courseDao = courseDao;
+    this.choiceDao = choiceDao;
+    this.config = config;
   }
-}
 
-private Message forwardToIntegration(Message req) {
-  try (var sock = new Socket(config.integrationHost(), config.integrationPort())) {
-    Message.write(sock.getOutputStream(), new Message(Command.CROSS_ENROLL, req.requestId(), req.payload()));
-    return Message.read(sock.getInputStream());
-  } catch (IOException e) {
-    return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
+  @Override
+  public Message handle(Message request) {
+    try {
+      Document doc = XmlIO.parse(request.payload());
+      Element root = doc.getRootElement();
+      String courseId = root.elementText("课程编号");
+      String studentId = root.elementText("学生编号");
+
+      if (!config.isLocalCourse(courseId)) {
+        return forwardCrossEnroll(request, courseId, studentId);
+      }
+
+      if (courseDao.findById(courseId).isEmpty()) {
+        return Message.err(request.requestId(), "NO_SUCH_COURSE",
+            "course not found: " + courseId);
+      }
+      if (choiceDao.exists(studentId, courseId)) {
+        return Message.err(request.requestId(), "ALREADY_ENROLLED",
+            "student already enrolled in this course");
+      }
+      choiceDao.enrollLocal(studentId, courseId);
+      return Message.ok(request.requestId(), "");
+    } catch (XmlException e) {
+      return Message.err(request.requestId(), "BAD_PAYLOAD",
+          "invalid XML: " + e.getMessage());
+    } catch (Exception e) {
+      return Message.err(request.requestId(), "INTERNAL_ERROR",
+          "enroll failed: " + e.getMessage());
+    }
+  }
+
+  private Message forwardCrossEnroll(Message req, String courseId, String studentId) {
+    String payload = "<crossEnroll>"
+        + "<courseId>" + courseId + "</courseId>"
+        + "<studentId>" + studentId + "</studentId>"
+        + "<fromCollege>" + config.collegeCode + "</fromCollege>"
+        + "</crossEnroll>";
+    try (var sock = new Socket(config.integrationHost, config.integrationPort)) {
+      Message.write(sock.getOutputStream(),
+          new Message(Command.CROSS_ENROLL, UUID.randomUUID().toString(), payload));
+      return Message.read(sock.getInputStream());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
+    }
   }
 }
 ```
 
-- [ ] **Step 2: 实现 CrossEnrollHandler（Integration Server）**
+B 院 (`college-b/.../EnrollLocalHandler.java`,完整覆盖,与 A 同构,只是字段名和 DAO 方法不同)：
 
 ```java
-// integration/src/main/java/integration/server/handler/CrossEnrollHandler.java
+package college.b.server.handler;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.b.dao.ChoiceDao;
+import college.b.dao.CourseDao;
+import college.b.server.CollegeServerConfig;
+
+import java.net.Socket;
+import java.util.UUID;
+
+public class EnrollLocalHandler implements Handler {
+  private final CourseDao courseDao;
+  private final ChoiceDao choiceDao;
+  private final CollegeServerConfig config;
+
+  public EnrollLocalHandler(CourseDao courseDao, ChoiceDao choiceDao, CollegeServerConfig config) {
+    this.courseDao = courseDao;
+    this.choiceDao = choiceDao;
+    this.config = config;
+  }
+
+  @Override
+  public Message handle(Message request) {
+    try {
+      var doc = XmlIO.parse(request.payload());
+      String courseId = doc.getRootElement().elementText("课程编号");
+      String studentId = doc.getRootElement().elementText("学号");
+
+      if (!config.isLocalCourse(courseId)) {
+        return forwardCrossEnroll(request, courseId, studentId);
+      }
+
+      var course = courseDao.findById(courseId);
+      if (course.isEmpty()) return Message.err(request.requestId(), "NO_SUCH_COURSE", courseId);
+      if (choiceDao.exists(studentId, courseId))
+        return Message.err(request.requestId(), "ALREADY_ENROLLED", studentId + "/" + courseId);
+
+      choiceDao.enroll(studentId, courseId);
+      return Message.ok(request.requestId(), "");
+    } catch (Exception e) {
+      return Message.err(request.requestId(), "BAD_PAYLOAD", e.getMessage());
+    }
+  }
+
+  private Message forwardCrossEnroll(Message req, String courseId, String studentId) {
+    String payload = "<crossEnroll>"
+        + "<courseId>" + courseId + "</courseId>"
+        + "<studentId>" + studentId + "</studentId>"
+        + "<fromCollege>" + config.collegeCode + "</fromCollege>"
+        + "</crossEnroll>";
+    try (var sock = new Socket(config.integrationHost, config.integrationPort)) {
+      Message.write(sock.getOutputStream(),
+          new Message(Command.CROSS_ENROLL, UUID.randomUUID().toString(), payload));
+      return Message.read(sock.getInputStream());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+C 院 (`college-c/.../EnrollLocalHandler.java`,完整覆盖)：
+
+```java
+package college.c.server.handler;
+
+import cn.edu.di.protocol.Command;
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.c.dao.ChoiceDao;
+import college.c.dao.CourseDao;
+import college.c.server.CollegeServerConfig;
+
+import java.net.Socket;
+import java.util.UUID;
+
+public class EnrollLocalHandler implements Handler {
+  private final CourseDao courseDao;
+  private final ChoiceDao choiceDao;
+  private final CollegeServerConfig config;
+
+  public EnrollLocalHandler(CourseDao courseDao, ChoiceDao choiceDao, CollegeServerConfig config) {
+    this.courseDao = courseDao;
+    this.choiceDao = choiceDao;
+    this.config = config;
+  }
+
+  @Override
+  public Message handle(Message request) {
+    try {
+      var doc = XmlIO.parse(request.payload());
+      String courseId = doc.getRootElement().elementText("Cno");
+      String studentId = doc.getRootElement().elementText("Sno");
+
+      if (!config.isLocalCourse(courseId)) {
+        return forwardCrossEnroll(request, courseId, studentId);
+      }
+
+      if (courseDao.findById(courseId).isEmpty())
+        return Message.err(request.requestId(), "NO_SUCH_COURSE", courseId);
+      if (choiceDao.exists(studentId, courseId))
+        return Message.err(request.requestId(), "ALREADY_ENROLLED", studentId + "/" + courseId);
+
+      choiceDao.enroll(studentId, courseId);
+      return Message.ok(request.requestId(), "");
+    } catch (Exception e) {
+      return Message.err(request.requestId(), "BAD_PAYLOAD", e.getMessage());
+    }
+  }
+
+  private Message forwardCrossEnroll(Message req, String courseId, String studentId) {
+    String payload = "<crossEnroll>"
+        + "<courseId>" + courseId + "</courseId>"
+        + "<studentId>" + studentId + "</studentId>"
+        + "<fromCollege>" + config.collegeCode + "</fromCollege>"
+        + "</crossEnroll>";
+    try (var sock = new Socket(config.integrationHost, config.integrationPort)) {
+      Message.write(sock.getOutputStream(),
+          new Message(Command.CROSS_ENROLL, UUID.randomUUID().toString(), payload));
+      return Message.read(sock.getInputStream());
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+- [ ] **Step 2: 实现 CrossEnrollHandler(Integration Server)**
+
+`integration/src/main/java/integration/server/handler/CrossEnrollHandler.java`：
+
+```java
 package integration.server.handler;
 
 import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import cn.edu.di.xml.XmlIO;
-import cn.edu.di.xml.XsltTransformer;
 import integration.net.CollegeClient;
+
 import java.util.UUID;
 
 public class CrossEnrollHandler implements Handler {
@@ -516,30 +707,32 @@ public class CrossEnrollHandler implements Handler {
   private final CollegeClient clientC;
 
   public CrossEnrollHandler(CollegeClient clientA, CollegeClient clientB, CollegeClient clientC) {
-    this.clientA = clientA; this.clientB = clientB; this.clientC = clientC;
+    this.clientA = clientA;
+    this.clientB = clientB;
+    this.clientC = clientC;
   }
 
   @Override
   public Message handle(Message req) {
     try {
       var doc = XmlIO.parse(req.payload());
-      String courseId = doc.getRootElement().elementText("课程编号");
-      String studentId = doc.getRootElement().elementText("学生编号");
+      String courseId = doc.getRootElement().elementText("courseId");
 
-      // Determine target college from courseId prefix
       CollegeClient target = targetFor(courseId);
       if (target == null) return Message.err(req.requestId(), "UNKNOWN_COURSE", courseId);
 
-      // Forward as APPLY_CHOICE to target college
       Message apply = target.send(new Message(Command.APPLY_CHOICE,
           UUID.randomUUID().toString(), req.payload()));
-      return apply;
+      return apply.command() == Command.OK
+          ? Message.ok(req.requestId(), apply.payload())
+          : Message.err(req.requestId(), "TARGET_REJECTED", apply.payload());
     } catch (Exception e) {
       return Message.err(req.requestId(), "CROSS_FAILED", e.getMessage());
     }
   }
 
   private CollegeClient targetFor(String courseId) {
+    if (courseId == null) return null;
     if (courseId.startsWith("AC")) return clientA;
     if (courseId.startsWith("BC")) return clientB;
     if (courseId.startsWith("CC")) return clientC;
@@ -548,16 +741,163 @@ public class CrossEnrollHandler implements Handler {
 }
 ```
 
-- [ ] **Step 3: 在各院注册 APPLY_CHOICE handler**
+- [ ] **Step 3: 实现三院 ApplyChoiceHandler**
 
-目标院收到 `APPLY_CHOICE` 后，解析 payload，插入学生（如不存在）和选课记录。
+A 院 (`college-a/src/main/java/college/a/server/handler/ApplyChoiceHandler.java`)：
 
 ```java
-// college-a/src/main/java/college/a/server/handler/ApplyChoiceHandler.java
-// 收到 APPLY_CHOICE，解析 课程编号/学生编号，调用 choiceDao.enrollLocal() + studentDao.insertIfMissing()
+package college.a.server.handler;
+
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.a.dao.ChoiceDao;
+import college.a.dao.CourseDao;
+import org.dom4j.Element;
+
+public class ApplyChoiceHandler implements Handler {
+  private final CourseDao courseDao;
+  private final ChoiceDao choiceDao;
+
+  public ApplyChoiceHandler(CourseDao courseDao, ChoiceDao choiceDao) {
+    this.courseDao = courseDao;
+    this.choiceDao = choiceDao;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      Element root = XmlIO.parse(req.payload()).getRootElement();
+      String courseId = root.elementText("courseId");
+      String studentId = root.elementText("studentId");
+      String fromCollege = root.elementText("fromCollege");
+
+      if (courseDao.findById(courseId).isEmpty()) {
+        return Message.err(req.requestId(), "NO_SUCH_COURSE", courseId);
+      }
+      if (choiceDao.exists(studentId, courseId)) {
+        return Message.err(req.requestId(), "ALREADY_ENROLLED", studentId + "/" + courseId);
+      }
+      choiceDao.enrollFromOther(studentId, courseId, fromCollege);
+      return Message.ok(req.requestId(), "");
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "APPLY_FAILED", e.getMessage());
+    }
+  }
+}
 ```
 
-- [ ] **Step 4: commit**
+B 院 (`college-b/.../ApplyChoiceHandler.java`,只调用 enroll)：
+
+```java
+package college.b.server.handler;
+
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.b.dao.ChoiceDao;
+import college.b.dao.CourseDao;
+import org.dom4j.Element;
+
+public class ApplyChoiceHandler implements Handler {
+  private final CourseDao courseDao;
+  private final ChoiceDao choiceDao;
+
+  public ApplyChoiceHandler(CourseDao courseDao, ChoiceDao choiceDao) {
+    this.courseDao = courseDao;
+    this.choiceDao = choiceDao;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      Element root = XmlIO.parse(req.payload()).getRootElement();
+      String courseId = root.elementText("courseId");
+      String studentId = root.elementText("studentId");
+
+      if (courseDao.findById(courseId).isEmpty()) {
+        return Message.err(req.requestId(), "NO_SUCH_COURSE", courseId);
+      }
+      if (choiceDao.exists(studentId, courseId)) {
+        return Message.err(req.requestId(), "ALREADY_ENROLLED", studentId + "/" + courseId);
+      }
+      choiceDao.enroll(studentId, courseId);
+      return Message.ok(req.requestId(), "");
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "APPLY_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+C 院 (`college-c/.../ApplyChoiceHandler.java`,与 B 同构,仅 package 不同)：
+
+```java
+package college.c.server.handler;
+
+import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
+import college.c.dao.ChoiceDao;
+import college.c.dao.CourseDao;
+import org.dom4j.Element;
+
+public class ApplyChoiceHandler implements Handler {
+  private final CourseDao courseDao;
+  private final ChoiceDao choiceDao;
+
+  public ApplyChoiceHandler(CourseDao courseDao, ChoiceDao choiceDao) {
+    this.courseDao = courseDao;
+    this.choiceDao = choiceDao;
+  }
+
+  @Override
+  public Message handle(Message req) {
+    try {
+      Element root = XmlIO.parse(req.payload()).getRootElement();
+      String courseId = root.elementText("courseId");
+      String studentId = root.elementText("studentId");
+
+      if (courseDao.findById(courseId).isEmpty()) {
+        return Message.err(req.requestId(), "NO_SUCH_COURSE", courseId);
+      }
+      if (choiceDao.exists(studentId, courseId)) {
+        return Message.err(req.requestId(), "ALREADY_ENROLLED", studentId + "/" + courseId);
+      }
+      choiceDao.enroll(studentId, courseId);
+      return Message.ok(req.requestId(), "");
+    } catch (Exception e) {
+      return Message.err(req.requestId(), "APPLY_FAILED", e.getMessage());
+    }
+  }
+}
+```
+
+- [ ] **Step 4: 三院 main 调整 EnrollLocalHandler 构造参数 + 注册 APPLY_CHOICE**
+
+三院 `College{X}Server.main()` 中：
+1. `new EnrollLocalHandler(courseDao, choiceDao)` → `new EnrollLocalHandler(courseDao, choiceDao, config)`
+2. 链尾追加 `.register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))`
+3. main 顶部加 `import college.{a,b,c}.server.handler.ApplyChoiceHandler;`
+
+- [ ] **Step 5: IntegrationServer.main 加 clientA + 注册 CROSS_ENROLL**
+
+`integration/src/main/java/integration/server/IntegrationServer.java` main：
+```java
+var clientA = new CollegeClient("127.0.0.1", 9001);
+var clientB = new CollegeClient("127.0.0.1", 9002);
+var clientC = new CollegeClient("127.0.0.1", 9003);
+IntegrationRouter router = new IntegrationRouter()
+    .register(Command.PING, new PingHandler())
+    .register(Command.FETCH_SHARED_COURSES, new FetchSharedCoursesHandler(clientB, clientC))
+    .register(Command.CROSS_ENROLL, new CrossEnrollHandler(clientA, clientB, clientC));
+```
+顶部加 `import integration.server.handler.CrossEnrollHandler;`
+
+- [ ] **Step 6: 编译 + commit**
+
+```bash
+mvn -q -DskipTests compile
+git add college-a/src/ college-b/src/ college-c/src/ integration/src/
+git commit -m "feat(cross): cross-college enroll via integration server"
+```
 
 ---
 
