@@ -2,6 +2,8 @@ package integration.server;
 
 import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
+import integration.net.CollegeClient;
+import integration.server.handler.FetchSharedCoursesHandler;
 import integration.server.handler.PingHandler;
 
 import java.io.IOException;
@@ -59,8 +61,11 @@ public class IntegrationServer implements AutoCloseable {
 
   public static void main(String[] args) throws Exception {
     int port = Integer.parseInt(System.getProperty("port", "9100"));
+    var clientB = new CollegeClient("127.0.0.1", 9002);
+    var clientC = new CollegeClient("127.0.0.1", 9003);
     IntegrationRouter router = new IntegrationRouter()
-        .register(Command.PING, new PingHandler());
+        .register(Command.PING, new PingHandler())
+        .register(Command.FETCH_SHARED_COURSES, new FetchSharedCoursesHandler(clientB, clientC));
     IntegrationServer server = new IntegrationServer(port, router);
     server.serve();
   }
