@@ -10,6 +10,8 @@
 
 **前置假设：** 你在 `data-integration` 仓库根目录工作，main 分支可直接提交。每个任务做完都要 `mvn -DskipTests install` 确保子模块互相能引到，再 `mvn test` 跑全测。
 
+**已发生的辅助修复（Task 3 落地时合入）：** `common/src/main/java/cn/edu/di/xml/XmlIO.java#toPrettyString` 现已启用 `setExpandEmptyElements(true)`，确保空元素以成对标签（`<x></x>`）而非自闭合（`<x/>`）形式输出。本计划所有 handler 直接用 `XmlIO.toPrettyString` 即可——不要再 inline OutputFormat workaround。
+
 **总览（共 18 个任务）：**
 
 1. 协议：`Command` 枚举加 3 个值
