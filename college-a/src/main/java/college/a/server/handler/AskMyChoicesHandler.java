@@ -7,10 +7,6 @@ import college.a.dao.CourseDao;
 import org.dom4j.Document;
 import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
-import org.dom4j.io.OutputFormat;
-import org.dom4j.io.XMLWriter;
-
-import java.io.StringWriter;
 
 public class AskMyChoicesHandler implements Handler {
   private final ChoiceDao choiceDao;
@@ -42,22 +38,11 @@ public class AskMyChoicesHandler implements Handler {
         c.addElement("学生编号").setText(ch.studentId());
         c.addElement("成绩").setText(ch.score() == null ? "" : ch.score());
       }
-      return Message.ok(req.requestId(), writeXml(doc));
+      return Message.ok(req.requestId(), XmlIO.toPrettyString(doc));
     } catch (RuntimeException e) {
       return Message.err(req.requestId(), "LOCAL_QUERY_FAILED", e.getMessage());
     } catch (Exception e) {
       return Message.err(req.requestId(), "BAD_PAYLOAD", e.getMessage());
     }
-  }
-
-  private static String writeXml(Document doc) throws Exception {
-    StringWriter sw = new StringWriter();
-    OutputFormat fmt = OutputFormat.createPrettyPrint();
-    fmt.setEncoding("UTF-8");
-    fmt.setExpandEmptyElements(true);
-    XMLWriter xw = new XMLWriter(sw, fmt);
-    xw.write(doc);
-    xw.flush();
-    return sw.toString();
   }
 }

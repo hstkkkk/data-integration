@@ -27,6 +27,7 @@ public final class XmlIO {
             StringWriter sw = new StringWriter();
             OutputFormat fmt = OutputFormat.createPrettyPrint();
             fmt.setEncoding("UTF-8");
+            fmt.setExpandEmptyElements(true);
             XMLWriter xw = new XMLWriter(sw, fmt);
             xw.write(doc);
             xw.flush();
