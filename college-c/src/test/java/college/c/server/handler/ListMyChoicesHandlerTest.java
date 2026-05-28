@@ -66,7 +66,8 @@ class ListMyChoicesHandlerTest {
       assertEquals(Command.OK, res.command());
       assertTrue(res.payload().contains("<myChoices sno=\"CS001\" home=\"C\">"));
       assertTrue(res.payload().contains("<Cno>CC001</Cno>"));
-      assertTrue(res.payload().contains("<class origin=\"A\">"));
+      assertTrue(res.payload().contains("<Org>A</Org>"));
+      assertTrue(res.payload().contains("<Cno>AC001</Cno>"));
     } finally {
       System.clearProperty("integration.port");
     }

@@ -253,3 +253,6 @@ C 院：
 - **错误显式化**：integration 即使部分外院失败也返回 OK，错误塞 `<errors>` 子元素，让客户端清晰看到「这个院走损」。
 - **客户端入口**：`CourseListFrame` 加按钮 → 模态 `MyChoicesDialog`，与现有「全局统计」交互模式一致。
 - **空成绩字段**：选课表 `成绩 / 得分 / Grd` 列允许 NULL；XML 始终输出该元素但内容可空（即 `<grade></grade>`）。XSD 中将 grade 的 type 定义为 `xs:string` 而非 `xs:decimal`，避免 NULL 转空字符串后无法通过 decimal 校验。
+- **决策修订（2026-05-28，落地 Task 18 时合入）**：原设计让客户端调 `unifiedMyChoiceToX.xsl` 把跨院块翻成本院字段。但 `client` 模块运行时 classpath 不含 `college-X/target/classes`，无法直接加载这些 XSL。**修正**：把 XSL 翻译挪到 home college 的 `ListMyChoicesHandler` 里——integration 返回的统一 `<classes>` 在 server 端经 `unifiedMyChoiceToX.xsl` 翻成本院字段后再放入响应的 `<crossEnrolled>` 子树。客户端零 XSL 依赖，与「刷新共享课程」流水线（XSL 也在 server 端做）保持一致。
+  - `<crossEnrolled>` 子树形态从「`<classes><class origin="X">...`」改为「`<课程集><课程><来源>X</来源>...本院字段...</课程></课程集>`」（C 院则是 `<courses><course><Org>...</course></courses>`）。客户端按本院字段读取即可，与 `<home>` 块结构对称（仅多一个 `<来源>` 元素）。
+  - `unifiedMyChoiceToX.xsl` 留在 college-X 模块（不复制到 client）。

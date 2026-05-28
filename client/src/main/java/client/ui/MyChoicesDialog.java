@@ -3,7 +3,6 @@ package client.ui;
 import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import cn.edu.di.xml.XmlIO;
-import cn.edu.di.xml.XsltTransformer;
 import client.net.CollegeClient;
 
 import javax.swing.*;
@@ -106,39 +105,32 @@ public class MyChoicesDialog extends JDialog {
           }
         }
       }
-      // cross block: feed <classes> through unifiedMyChoiceToX.xsl
+      // cross block: home college server already translated <crossEnrolled> into local fields
       var crossEl = root.element("crossEnrolled");
       if (crossEl != null) {
-        var classes = crossEl.element("classes");
-        if (classes != null && !classes.elements().isEmpty()) {
-          String unifiedXml = classes.asXML();
-          String xsl = "/xsl/unifiedMyChoiceTo" + college + ".xsl";
-          String localized = XsltTransformer.fromClasspath(xsl).transform(unifiedXml);
-          var localRoot = XmlIO.parse(localized).getRootElement();
-          if ("C".equals(college)) {
-            for (Object o : localRoot.elements("course")) {
-              var e = (org.dom4j.Element) o;
-              crossModel.addRow(new Object[]{
-                  e.elementText("Org"),
-                  e.elementText("Cno"), e.elementText("Cnm"),
-                  e.elementText("Cpt"), e.elementText("Tec"),
-                  e.elementText("Pla"), e.elementText("Grd")
-              });
-            }
-          } else {
-            boolean isB = "B".equals(college);
-            for (Object o : localRoot.elements("课程")) {
-              var e = (org.dom4j.Element) o;
-              crossModel.addRow(new Object[]{
-                  e.elementText("来源"),
-                  e.elementText(isB ? "编号" : "课程编号"),
-                  e.elementText(isB ? "名称" : "课程名称"),
-                  e.elementText("学分"),
-                  e.elementText(isB ? "老师" : "授课老师"),
-                  e.elementText(isB ? "地点" : "授课地点"),
-                  e.elementText(isB ? "得分" : "成绩")
-              });
-            }
+        if ("C".equals(college)) {
+          for (Object o : crossEl.elements("course")) {
+            var e = (org.dom4j.Element) o;
+            crossModel.addRow(new Object[]{
+                e.elementText("Org"),
+                e.elementText("Cno"), e.elementText("Cnm"),
+                e.elementText("Cpt"), e.elementText("Tec"),
+                e.elementText("Pla"), e.elementText("Grd")
+            });
+          }
+        } else {
+          boolean isB = "B".equals(college);
+          for (Object o : crossEl.elements("课程")) {
+            var e = (org.dom4j.Element) o;
+            crossModel.addRow(new Object[]{
+                e.elementText("来源"),
+                e.elementText(isB ? "编号" : "课程编号"),
+                e.elementText(isB ? "名称" : "课程名称"),
+                e.elementText("学分"),
+                e.elementText(isB ? "老师" : "授课老师"),
+                e.elementText(isB ? "地点" : "授课地点"),
+                e.elementText(isB ? "得分" : "成绩")
+            });
           }
         }
       }

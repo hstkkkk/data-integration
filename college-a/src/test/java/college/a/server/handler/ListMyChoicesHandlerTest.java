@@ -69,7 +69,8 @@ class ListMyChoicesHandlerTest {
       assertTrue(res.payload().contains("<home>"));
       assertTrue(res.payload().contains("<课程编号>AC001</课程编号>"));
       assertTrue(res.payload().contains("<crossEnrolled>"));
-      assertTrue(res.payload().contains("<class origin=\"B\">"));
+      assertTrue(res.payload().contains("<来源>B</来源>"));
+      assertTrue(res.payload().contains("<课程编号>BC003</课程编号>"));
     } finally {
       System.clearProperty("integration.port");
     }

@@ -3,6 +3,7 @@ package college.b.server.handler;
 import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import cn.edu.di.xml.XmlIO;
+import cn.edu.di.xml.XsltTransformer;
 import college.b.dao.ChoiceDao;
 import college.b.dao.CourseDao;
 import college.b.server.CollegeServerConfig;
@@ -73,7 +74,14 @@ public class ListMyChoicesHandler implements Handler {
       if (resp.command() == Command.OK) {
         Element pulled = XmlIO.parse(resp.payload()).getRootElement();
         Element pulledClasses = pulled.element("classes");
-        if (pulledClasses != null) crossEnrolled.add(pulledClasses.createCopy());
+        if (pulledClasses != null && !pulledClasses.elements().isEmpty()) {
+          String localized = XsltTransformer.fromClasspath("/xsl/unifiedMyChoiceToB.xsl")
+              .transform(pulledClasses.asXML());
+          Element localRoot = XmlIO.parse(localized).getRootElement();
+          for (Object o : localRoot.elements()) {
+            crossEnrolled.add(((Element) o).createCopy());
+          }
+        }
         Element pulledErrors = pulled.element("errors");
         if (pulledErrors != null) {
           for (Object o : pulledErrors.elements("error")) {
