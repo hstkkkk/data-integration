@@ -1,6 +1,7 @@
 package analytics.pdf;
 
 import analytics.model.StatsData;
+import javax.xml.XMLConstants;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
@@ -31,7 +32,10 @@ public final class PdfReportGenerator {
     var fop = fopFactory.newFop(org.apache.xmlgraphics.util.MimeConstants.MIME_PDF,
         fopFactory.newFOUserAgent(), out);
 
-    var transformer = TransformerFactory.newInstance().newTransformer(xslSource);
+    var factory = TransformerFactory.newInstance();
+    factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+    try { factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true); } catch (Exception ignore) {}
+    var transformer = factory.newTransformer(xslSource);
     transformer.transform(xmlSource, new javax.xml.transform.sax.SAXResult(fop.getDefaultHandler()));
     return out.toByteArray();
   }
