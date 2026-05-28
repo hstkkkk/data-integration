@@ -24,9 +24,7 @@ public class ChoiceDao {
     String sql = "INSERT INTO 选课(课程编号,学号,来源) VALUES(?,?,?)";
     try (var c = ds.getConnection(); var ps = c.prepareStatement(sql)) {
       ps.setString(1, courseId); ps.setString(2, studentId); ps.setString(3, origin);
-      int rows = ps.executeUpdate();
-      c.commit();
-      return rows;
+      return ps.executeUpdate();
     } catch (SQLException e) { throw new RuntimeException("enroll failed", e); }
   }
 
@@ -34,9 +32,7 @@ public class ChoiceDao {
     String sql = "DELETE FROM 选课 WHERE 学号=? AND 课程编号=?";
     try (var c = ds.getConnection(); var ps = c.prepareStatement(sql)) {
       ps.setString(1, studentId); ps.setString(2, courseId);
-      int rows = ps.executeUpdate();
-      c.commit();
-      return rows;
+      return ps.executeUpdate();
     } catch (SQLException e) { throw new RuntimeException(e); }
   }
 
