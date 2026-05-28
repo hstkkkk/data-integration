@@ -34,7 +34,7 @@ CREATE TABLE 选课 (
   Cno char(4)    NOT NULL,
   Sno char(12)   NOT NULL,
   Grd varchar(3) NULL,
+  Org char(1)    NOT NULL DEFAULT 'C',
   FOREIGN KEY (Cno) REFERENCES 课程(Cno),
-  FOREIGN KEY (Sno) REFERENCES 学生(Sno),
   UNIQUE KEY UK_SC (Sno, Cno)
 ) ENGINE=InnoDB;

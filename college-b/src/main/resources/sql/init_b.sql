@@ -60,8 +60,9 @@ CREATE TABLE collegeb.课程 (
 
 CREATE TABLE collegeb.选课 (
   课程编号 varchar2(5)  NOT NULL REFERENCES collegeb.课程(编号),
-  学号     varchar2(12) NOT NULL REFERENCES collegeb.学生(学号),
-  得分     varchar2(3)
+  学号     varchar2(12) NOT NULL,
+  得分     varchar2(3),
+  来源     char(1)      DEFAULT 'B' NOT NULL
 );
 
 EXIT;

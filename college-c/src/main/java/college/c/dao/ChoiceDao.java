@@ -12,9 +12,17 @@ public class ChoiceDao {
   public ChoiceDao(DataSource ds) { this.ds = ds; }
 
   public int enroll(String studentId, String courseId) {
-    String sql = "INSERT INTO 选课(Cno, Sno) VALUES (?, ?)";
+    return insert(studentId, courseId, "C");
+  }
+
+  public int enrollFromOther(String studentId, String courseId, String origin) {
+    return insert(studentId, courseId, origin);
+  }
+
+  private int insert(String studentId, String courseId, String origin) {
+    String sql = "INSERT INTO 选课(Cno, Sno, Org) VALUES (?, ?, ?)";
     try (var c = ds.getConnection(); var ps = c.prepareStatement(sql)) {
-      ps.setString(1, courseId); ps.setString(2, studentId);
+      ps.setString(1, courseId); ps.setString(2, studentId); ps.setString(3, origin);
       return ps.executeUpdate();
     } catch (SQLException e) { throw new RuntimeException("enroll failed", e); }
   }
