@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="classes">
+    <xs:complexType><xs:sequence>
+      <xs:element name="class" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="id"       type="xs:string"/>
+            <xs:element name="name"     type="xs:string"/>
+            <xs:element name="time"     type="xs:decimal"/>
+            <xs:element name="score"    type="xs:decimal"/>
+            <xs:element name="teacher"  type="xs:string"/>
+            <xs:element name="location" type="xs:string"/>
+            <xs:element name="share">
+              <xs:simpleType><xs:restriction base="xs:string">
+                <xs:enumeration value="Y"/><xs:enumeration value="N"/>
+              </xs:restriction></xs:simpleType>
+            </xs:element>
+            <xs:element name="sno"   type="xs:string"/>
+            <xs:element name="grade" type="xs:string"/>
+          </xs:sequence>
+          <xs:attribute name="origin" use="required">
+            <xs:simpleType><xs:restriction base="xs:string">
+              <xs:enumeration value="A"/><xs:enumeration value="B"/><xs:enumeration value="C"/>
+            </xs:restriction></xs:simpleType>
+          </xs:attribute>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+</xs:schema>
