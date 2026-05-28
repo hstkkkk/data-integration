@@ -36,7 +36,7 @@ CREATE TABLE 课程 (
 
 CREATE TABLE 选课 (
   课程编号  varchar(8)  NOT NULL FOREIGN KEY REFERENCES 课程(课程编号),
-  学生编号  varchar(12) NOT NULL FOREIGN KEY REFERENCES 学生(学号),
+  学生编号  varchar(12) NOT NULL,
   成绩      varchar(3)  NULL,
   来源      char(1)     NOT NULL DEFAULT 'A',
   CONSTRAINT UK_选课 UNIQUE (课程编号, 学生编号)
