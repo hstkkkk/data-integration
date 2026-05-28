@@ -8,7 +8,9 @@ import college.a.dao.CourseDao;
 import college.a.dao.StudentDao;
 import college.a.jdbc.JdbcFactory;
 import college.a.server.handler.ApplyChoiceHandler;
+import college.a.server.handler.AskMyChoicesHandler;
 import college.a.server.handler.EnrollLocalHandler;
+import college.a.server.handler.ListMyChoicesHandler;
 import college.a.server.handler.ListLocalCoursesHandler;
 import college.a.server.handler.ListSharedCoursesHandler;
 import college.a.server.handler.LoginHandler;
@@ -93,7 +95,9 @@ public class CollegeAServer implements AutoCloseable {
         .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
         .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))
         .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))
-        .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config));
+        .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config))
+        .register(Command.LIST_MY_CHOICES, new ListMyChoicesHandler(choiceDao, courseDao, config))
+        .register(Command.ASK_MY_CHOICES, new AskMyChoicesHandler(choiceDao, courseDao));
     CollegeAServer server = new CollegeAServer(port, router);
     server.serve();
   }

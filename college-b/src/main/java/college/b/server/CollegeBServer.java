@@ -6,8 +6,10 @@ import college.b.dao.CourseDao;
 import college.b.dao.StudentDao;
 import college.b.jdbc.JdbcFactory;
 import college.b.server.handler.ApplyChoiceHandler;
+import college.b.server.handler.AskMyChoicesHandler;
 import college.b.server.handler.EnrollLocalHandler;
 import college.b.server.handler.ListLocalCoursesHandler;
+import college.b.server.handler.ListMyChoicesHandler;
 import college.b.server.handler.ListSharedCoursesHandler;
 import college.b.server.handler.LoginHandler;
 import college.b.server.handler.AskCourseInfoHandler;
@@ -88,7 +90,9 @@ public class CollegeBServer implements AutoCloseable {
         .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
         .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))
         .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))
-        .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config));
+        .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config))
+        .register(Command.LIST_MY_CHOICES, new ListMyChoicesHandler(choiceDao, courseDao, config))
+        .register(Command.ASK_MY_CHOICES, new AskMyChoicesHandler(choiceDao, courseDao));
 
     try (var srv = new CollegeBServer(port, router)) {
       System.out.println("College B server listening on " + srv.getPort());
