@@ -19,6 +19,7 @@ import college.a.server.handler.GetStudentProfileHandler;
 import college.a.server.handler.ListChoicesHandler;
 import college.a.server.handler.RevokeChoiceHandler;
 import college.a.server.handler.ListStudentsHandler;
+import college.a.server.handler.HeartbeatHandler;
 import college.a.server.handler.StatsForwardHandler;
 import college.a.server.handler.StatsPullHandler;
 import college.a.server.handler.UpdateStudentProfileHandler;
@@ -88,6 +89,7 @@ public class CollegeAServer implements AutoCloseable {
     ChoiceDao choiceDao = new ChoiceDao(ds);
     StudentDao studentDao = new StudentDao(ds);
     AuthService auth = new AuthService(accountDao);
+    var heart = new HeartbeatHandler("A");
     CommandRouter router = new CommandRouter()
         .register(Command.LOGIN, new LoginHandler(auth))
         .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
@@ -105,7 +107,8 @@ public class CollegeAServer implements AutoCloseable {
         .register(Command.GET_STUDENT_PROFILE, new GetStudentProfileHandler(studentDao))
         .register(Command.UPDATE_STUDENT_PROFILE, new UpdateStudentProfileHandler(studentDao))
         .register(Command.LIST_STUDENTS, new ListStudentsHandler(studentDao))
-        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao));
+        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao))
+        .register(Command.HEARTBEAT, heart);
     CollegeAServer server = new CollegeAServer(port, router);
     server.serve();
   }

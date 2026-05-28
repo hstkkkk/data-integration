@@ -5,6 +5,7 @@ import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
 import cn.edu.di.xml.XmlIO;
 
+import analytics.ui.DashboardDialog;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
@@ -27,6 +28,7 @@ public class CourseListFrame extends JFrame {
   private final JButton myChoicesButton;
   private final JButton profileButton;
   private final JButton adminButton;
+  private final JButton analyticsButton;
 
   private static final String[] COLUMNS = {
       "课程编号", "课程名称", "学分", "授课老师", "授课地点", "共享"
@@ -61,6 +63,8 @@ public class CourseListFrame extends JFrame {
     myChoicesButton = new JButton("我的选课");
     profileButton = new JButton("个人信息");
     adminButton = new JButton("教务管理");
+    analyticsButton = new JButton("分析中心");
+    analyticsButton.addActionListener(e -> openAnalytics());
     myChoicesButton.addActionListener(e -> openMyChoices());
     profileButton.addActionListener(e -> openProfile());
     adminButton.addActionListener(e -> openAdminData());
@@ -77,6 +81,7 @@ public class CourseListFrame extends JFrame {
     buttonPanel.add(myChoicesButton);
     buttonPanel.add(profileButton);
     if (isAdmin()) buttonPanel.add(adminButton);
+    buttonPanel.add(analyticsButton);
 
     statusLabel = new JLabel(" ", SwingConstants.CENTER);
 
@@ -270,6 +275,7 @@ public class CourseListFrame extends JFrame {
     myChoicesButton.setEnabled(enabled);
     profileButton.setEnabled(enabled);
     adminButton.setEnabled(enabled && isAdmin());
+    analyticsButton.setEnabled(enabled);
   }
 
   private void openMyChoices() {
@@ -288,6 +294,20 @@ public class CourseListFrame extends JFrame {
 
   private void openAdminData() {
     new AdminDataDialog(this, college, client).setVisible(true);
+  }
+
+  private void openAnalytics() {
+    String integrationHost = System.getProperty("integration.host", "127.0.0.1");
+    int integrationPort = Integer.parseInt(System.getProperty("integration.port", "9100"));
+    var dialog = new DashboardDialog(
+        (Frame) SwingUtilities.getWindowAncestor(this),
+        msg -> {
+          try { return client.send(msg); } catch (Exception e) {
+            return cn.edu.di.protocol.Message.err("0", "SEND_FAILED", e.getMessage());
+          }
+        },
+        integrationHost, integrationPort);
+    dialog.setVisible(true);
   }
 
   private void applyRolePermissions() {

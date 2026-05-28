@@ -17,6 +17,7 @@ import college.b.server.handler.ListStudentsHandler;
 import college.b.server.handler.LoginHandler;
 import college.b.server.handler.AskCourseInfoHandler;
 import college.b.server.handler.RevokeChoiceHandler;
+import college.b.server.handler.HeartbeatHandler;
 import college.b.server.handler.StatsForwardHandler;
 import college.b.server.handler.StatsPullHandler;
 import college.b.server.handler.UpdateStudentProfileHandler;
@@ -83,6 +84,7 @@ public class CollegeBServer implements AutoCloseable {
     var choiceDao = new ChoiceDao(ds);
     var studentDao = new StudentDao(ds);
 
+    var heart = new HeartbeatHandler("B");
     var router = new CommandRouter()
         .register(Command.LOGIN, new LoginHandler(new AuthService(accountDao)))
         .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
@@ -100,7 +102,8 @@ public class CollegeBServer implements AutoCloseable {
         .register(Command.GET_STUDENT_PROFILE, new GetStudentProfileHandler(studentDao))
         .register(Command.UPDATE_STUDENT_PROFILE, new UpdateStudentProfileHandler(studentDao))
         .register(Command.LIST_STUDENTS, new ListStudentsHandler(studentDao))
-        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao));
+        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao))
+        .register(Command.HEARTBEAT, heart);
 
     try (var srv = new CollegeBServer(port, router)) {
       System.out.println("College B server listening on " + srv.getPort());

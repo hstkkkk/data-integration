@@ -17,6 +17,7 @@ import college.c.server.handler.ListStudentsHandler;
 import college.c.server.handler.LoginHandler;
 import college.c.server.handler.AskCourseInfoHandler;
 import college.c.server.handler.RevokeChoiceHandler;
+import college.c.server.handler.HeartbeatHandler;
 import college.c.server.handler.StatsForwardHandler;
 import college.c.server.handler.StatsPullHandler;
 import college.c.server.handler.UpdateStudentProfileHandler;
@@ -81,6 +82,7 @@ public class CollegeCServer implements AutoCloseable {
     var choiceDao = new ChoiceDao(ds);
     var studentDao = new StudentDao(ds);
 
+    var heart = new HeartbeatHandler("C");
     var router = new CommandRouter()
         .register(Command.LOGIN, new LoginHandler(new AuthService(accountDao)))
         .register(Command.LIST_LOCAL_COURSES, new ListLocalCoursesHandler(courseDao))
@@ -98,7 +100,8 @@ public class CollegeCServer implements AutoCloseable {
         .register(Command.GET_STUDENT_PROFILE, new GetStudentProfileHandler(studentDao))
         .register(Command.UPDATE_STUDENT_PROFILE, new UpdateStudentProfileHandler(studentDao))
         .register(Command.LIST_STUDENTS, new ListStudentsHandler(studentDao))
-        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao));
+        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao))
+        .register(Command.HEARTBEAT, heart);
 
     try (var srv = new CollegeCServer(port, router)) {
       System.out.println("College C server listening on " + srv.getPort());

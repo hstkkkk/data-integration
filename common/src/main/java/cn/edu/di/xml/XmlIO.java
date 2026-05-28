@@ -13,13 +13,23 @@ public final class XmlIO {
     private XmlIO() {}
 
     public static Document parse(String xml) {
-        try { return new SAXReader().read(new StringReader(xml)); }
+        try { return createSafeReader().read(new StringReader(xml)); }
         catch (Exception e) { throw new XmlException("parse failed: " + e.getMessage(), e); }
     }
 
     public static Document parse(InputStream in) {
-        try { return new SAXReader().read(new InputStreamReader(in, StandardCharsets.UTF_8)); }
+        try { return createSafeReader().read(new InputStreamReader(in, StandardCharsets.UTF_8)); }
         catch (Exception e) { throw new XmlException("parse failed: " + e.getMessage(), e); }
+    }
+
+    private static SAXReader createSafeReader() {
+        SAXReader reader = new SAXReader();
+        try {
+            reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        } catch (Exception ignore) {}
+        return reader;
     }
 
     public static String toPrettyString(Document doc) {
