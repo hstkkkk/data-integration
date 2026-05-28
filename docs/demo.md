@@ -14,12 +14,16 @@
 ```
 
 脚本顺序：
-1. 启动三个 DBMS 容器：`di-sqlserver`（A）、`di-oracle`（B）、`di-mysql`（C）
-2. `mvn -DskipTests install` 构建全部模块
-3. 生成各模块运行时 classpath 文件
-4. 后台启动 4 个 JVM：Integration Server :9100、College A :9001、College B :9002、College C :9003
+1. 启动前校验 4 个 server 端口（9001/9002/9003/9100）空闲，否则立即退出
+2. 启动三个 DBMS 容器：`di-sqlserver`（A）、`di-oracle`（B）、`di-mysql`（C）
+3. `mvn -DskipTests install` 构建全部模块；构建失败立即退出（不会拿旧 classes 蒙混）
+4. 生成各模块运行时 classpath 文件
+5. 后台启动 4 个 JVM：Integration Server :9100、College A :9001、College B :9002、College C :9003
+6. 探活：每个 server 等 15 秒看真的在监听端口；启动失败则 dump 日志末尾 20 行后退出
 
 各进程日志位于 `logs/` 目录，PID 文件以便后续 stop。
+
+> **注意**：脚本不会自动建表 / 灌种子数据。首次运行需先按 `README.md#数据库初始化` 一节灌三院数据。
 
 ## 2. 启动三个客户端
 
@@ -82,20 +86,42 @@ A、B、C 三院按上述流程各自演示，证明三个 DBMS（SQL Server / O
    - 各院明细：A/B/C 各 students / courses / shared / crossEnrollments
    - Top 5 课程（按选课数降序）
 
-## 4. 关键 XML 资源（7 个 XSL + 3 个 XSD）
+### 加分需求 — 我的选课（含跨院聚合）
+1. A 客户端点击「我的选课」→ 默认填入登录账号 → 确认
+   - 客户端 → A Server `LIST_MY_CHOICES`（payload `<sno>AS001</sno>`）
+   - A Server `ListMyChoicesHandler` 本院 join 出 `<home><课程集>...</课程集></home>` 段（A 院字段命名）
+   - A Server 转发 `PULL_MY_CHOICES` 给 Integration（payload `<myChoicesReq sno="AS001" home="A"/>`）
+   - Integration `PullMyChoicesHandler` 跳过 home=A，并发向 B/C 发 `ASK_MY_CHOICES`
+   - B/C 的 `AskMyChoicesHandler` 各自查 `选课 WHERE 学号=AS001` join 课程，回本院字段命名 `<myChoiceSet>`
+   - Integration 用 `formatB-myChoice.xsl` / `formatC-myChoice.xsl` 翻成统一 `<classes><class origin="B">...`
+   - `formatMyChoice.xsd` 校验后合并；外院故障塞 `<errors><error college="C">...</error>`
+   - A Server 收到 `<crossEnrolledResult>` 后用 `unifiedMyChoiceToA.xsl` 把跨院块翻成 A 院字段，整体拼成 `<myChoices sno=... home="A">`
+2. 弹窗显示两张表：
+   - 上：本院选课（A 院字段：课程编号 / 课程名称 / 学分 / 授课老师 / 授课地点 / 成绩）
+   - 下：跨院选课（多列「来源」标记 B 或 C）
+   - 底部 status：加载完成行数 或 红字外院故障详情
+
+## 4. 关键 XML 资源（13 个 XSL + 4 个 XSD）
 
 | 文件 | 角色 |
 |------|------|
-| `integration/src/main/resources/xsl/formatA.xsl` | A 院原生 → 统一（聚合用） |
-| `integration/src/main/resources/xsl/formatB.xsl` | B 院原生 → 统一（聚合用） |
-| `integration/src/main/resources/xsl/formatC.xsl` | C 院原生 → 统一（聚合用） |
+| `integration/src/main/resources/xsl/formatA.xsl` | A 院原生 → 统一（共享课聚合） |
+| `integration/src/main/resources/xsl/formatB.xsl` | B 院原生 → 统一（共享课聚合） |
+| `integration/src/main/resources/xsl/formatC.xsl` | C 院原生 → 统一（共享课聚合） |
 | `integration/src/main/resources/xsl/identity.xsl` | 身份变换（用于回归测试） |
-| `college-a/src/main/resources/xsl/unifiedToA.xsl` | 统一 → A 院本地（A 院展示共享课用） |
-| `college-b/src/main/resources/xsl/unifiedToB.xsl` | 统一 → B 院本地（B 院展示共享课用） |
-| `college-c/src/main/resources/xsl/unifiedToC.xsl` | 统一 → C 院本地（C 院展示共享课用） |
-| `common/src/main/resources/schema/formatClass.xsd` | 统一 `<classes>` 课程格式 XSD 校验 |
+| `integration/src/main/resources/xsl/formatA-myChoice.xsl` | A 院 `<myChoiceSet>` → 统一 `<classes>` + sno + grade |
+| `integration/src/main/resources/xsl/formatB-myChoice.xsl` | B 院 `<myChoiceSet>` → 统一（同上） |
+| `integration/src/main/resources/xsl/formatC-myChoice.xsl` | C 院 `<myChoiceSet>` → 统一（同上） |
+| `college-a/src/main/resources/xsl/unifiedToA.xsl` | 统一 → A 院本地（共享课展示） |
+| `college-b/src/main/resources/xsl/unifiedToB.xsl` | 统一 → B 院本地（共享课展示） |
+| `college-c/src/main/resources/xsl/unifiedToC.xsl` | 统一 → C 院本地（共享课展示） |
+| `college-a/src/main/resources/xsl/unifiedMyChoiceToA.xsl` | 统一 → A 院本地（跨院选课展示，含来源/学号/成绩） |
+| `college-b/src/main/resources/xsl/unifiedMyChoiceToB.xsl` | 统一 → B 院本地（同上） |
+| `college-c/src/main/resources/xsl/unifiedMyChoiceToC.xsl` | 统一 → C 院本地（同上） |
+| `common/src/main/resources/schema/formatClass.xsd` | 统一 `<classes>` 课程格式 XSD 校验（共享课用） |
 | `common/src/main/resources/schema/formatStudent.xsd` | 统一学生格式 XSD 校验 |
 | `common/src/main/resources/schema/formatChoice.xsd` | 统一选课格式 XSD 校验 |
+| `common/src/main/resources/schema/formatMyChoice.xsd` | 统一 `<classes>` + sno + grade 格式 XSD 校验（我的选课用） |
 
 ## 5. 关闭
 
@@ -105,30 +131,30 @@ A、B、C 三院按上述流程各自演示，证明三个 DBMS（SQL Server / O
 
 杀掉 4 个 JVM 进程（按 `logs/*.pid`）并停掉 3 个 DBMS 容器。
 
-## 6. 冒烟结果（最近一次 mvn 执行，2026-05-27）
+## 6. 冒烟结果（最近一次 mvn 执行，2026-05-28）
 
 构建：
 
 ```text
 [INFO] BUILD SUCCESS
-[INFO] Total time:  0.854 s
-[INFO] Finished at: 2026-05-27T10:53:57+08:00
 ```
 
-测试（按模块汇总）：
+测试（按模块汇总，共 146 个测试 0 失败 0 错误）：
 
 ```text
-[INFO] Tests run: 24, Failures: 0, Errors: 0, Skipped: 0    (college-a)
-[INFO] Tests run: 24, Failures: 0, Errors: 0, Skipped: 0    (college-b)
-[INFO] Tests run: 14, Failures: 0, Errors: 0, Skipped: 0    (college-c)
-[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0    (integration)
-[INFO] Tests run: 3,  Failures: 0, Errors: 0, Skipped: 0    (client)
-[INFO] Tests run: 9,  Failures: 0, Errors: 0, Skipped: 0    (seed-data)
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0    (common)
+[INFO] Tests run: 33, Failures: 0, Errors: 0, Skipped: 0    (college-a)
+[INFO] Tests run: 32, Failures: 0, Errors: 0, Skipped: 0    (college-b)
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0    (college-c)
+[INFO] Tests run: 23, Failures: 0, Errors: 0, Skipped: 0    (integration)
+[INFO] Tests run:  3, Failures: 0, Errors: 0, Skipped: 0    (client)
+[INFO] Tests run:  9, Failures: 0, Errors: 0, Skipped: 0    (seed-data)
 [INFO] BUILD SUCCESS
 ```
 
 ## 7. 已知限制
 
-- 跨院选课只在目标院数据库写入选课记录；不在源院记录"该学生选了外院某门课"的反向引用，回查需统计端聚合
-- B/C 院 `ChoiceDao` 没有 `enrollFromOther` 路径，跨院学生写入时丢失"来自哪个院"信息（仅 A 院的 `enrollLocal/enrollFromOther` 双轨保留来源）
+- 跨院选课只在目标院数据库写入选课记录；不在源院记录"该学生选了外院某门课"的反向引用。「我的选课」需求通过 fan-out 三院聚合解决了这条查询路径的可达性
+- 三院 `选课` 表都额外有 `来源` / `Org` 列保留请求方学院信息；`选课` 表对学生表**没有** FK（跨院学生不在本院学生表，FK 会破坏跨院流）
 - 没有事务/2PC：Integration 转发到目标院 `APPLY_CHOICE` 失败时返回客户端，但不会回滚源端任何状态（源端本来就只是转发，无状态可回滚，因此一致性自然保持）
+- Integration 不可达时，本院操作仍可独立完成；跨院请求和「我的选课」的跨院块降级（前者 ERR、后者本院块照样返回 + `<errors>` 标记）

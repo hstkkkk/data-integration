@@ -1,6 +1,6 @@
 # 基于 XML 的异构数据集成 — 集成教务系统
 
-三院（A/B/C）异构 DBMS 教务系统的数据集成项目。基于 XML + 自定义 Socket 协议，实现课程共享、跨院选课、跨院退课、全局统计。
+三院（A/B/C）异构 DBMS 教务系统的数据集成项目。基于 XML + 自定义 Socket 协议，实现课程共享、跨院选课、跨院退课、全局统计、跨院「我的选课」聚合。
 
 **数据库后端：** SQL Server (A) · Oracle (B) · MySQL (C)  
 **通信：** 纯 Socket + 自定义文本帧 + XML 负载  
@@ -27,15 +27,16 @@
 # 1. 克隆仓库
 git clone <repo-url> && cd data-integration
 
-# 2. 拉取 Docker 镜像 + 构建 + 启动全部进程（5 分钟）
+# 2. 启动 3 个 DB 容器 + 构建 + 起 4 个 JVM
 ./scripts/start-all.sh
 ```
 
-首次运行时 `start-all.sh` 会：
-1. 拉取 SQL Server 2022、Oracle 23 Free、MySQL 8.0 镜像
-2. 创建数据库并灌入种子数据（每院 50 学生 / 10 课程 / 每生 5 选课）
-3. `mvn install -DskipTests` 构建全部 jar
-4. 后台启动 4 个 Java 进程
+`start-all.sh` 会：
+1. 启动 / 复用 SQL Server 2022、Oracle 23 Free、MySQL 8.0 容器
+2. `mvn install -DskipTests` 构建全部模块
+3. 后台启动 4 个 Java 进程（Integration + 3 院 server）
+
+**注意**：脚本**不会**自动建表 / 灌种子数据。首次运行需手工执行下方「数据库初始化」一节，三院各跑一次。
 
 ### 启动客户端
 
@@ -87,44 +88,47 @@ java -cp client/target/classes:common/target/classes:$(cat client/target/classpa
 
 ---
 
-## 数据库初始化（手工）
+## 数据库初始化（首次必跑）
 
-如果 `start-all.sh` 首次运行容器已启动但 schema 未建（Docker 拉镜像时超时），可手工执行：
+`start-all.sh` 不会自动建表 / 灌种子。首次必须手工执行下方三段（每院一段）。后续重启不需要重灌（schema 已持久化在容器卷里）。
 
 ```bash
 # A 院 — SQL Server
-docker exec -i di-sqlserver /opt/mssql-tools18/bin/sqlcmd \
-    -S localhost -U SA -P 'Di_Strong_Pwd!2024' -No \
-    < college-a/src/main/resources/sql/init_a.sql
+docker cp college-a/src/main/resources/sql/init_a.sql      di-sqlserver:/tmp/init_a.sql
+docker cp college-a/src/main/resources/sql/init_a_data.sql di-sqlserver:/tmp/init_a_data.sql
+docker exec di-sqlserver /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U SA -P 'Di_Strong_Pwd!2024' -No -i /tmp/init_a.sql
+docker exec di-sqlserver /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U SA -P 'Di_Strong_Pwd!2024' -No -d collegeA -i /tmp/init_a_data.sql
 
-docker exec -i di-sqlserver /opt/mssql-tools18/bin/sqlcmd \
-    -S localhost -U SA -P 'Di_Strong_Pwd!2024' -No -d collegeA \
-    < college-a/src/main/resources/sql/init_a_data.sql
-
-# B 院 — Oracle（注意：需用 sysdba 连，Oracle listener 可能不稳定）
-printf "ALTER SESSION SET CONTAINER=freepdb1;\nALTER SESSION SET CURRENT_SCHEMA=collegeb;\n" > /tmp/init_b_run.sql
-cat college-b/src/main/resources/sql/init_b_data.sql >> /tmp/init_b_run.sql
-
-sudo docker exec -i di-oracle sqlplus -s / as sysdba @/dev/stdin \
-    < college-b/src/main/resources/sql/init_b.sql
-
-sudo docker exec -i di-oracle sqlplus -s / as sysdba < /tmp/init_b_run.sql
+# B 院 — Oracle
+# 首次：CDB 启动后 PDB 通常已 OPEN；若手工 docker start 容器后报 ORA-01109，先打开 PDB：
+#   docker exec di-oracle sqlplus -s system/oracle123 <<<'ALTER PLUGGABLE DATABASE freepdb1 OPEN;'
+docker cp college-b/src/main/resources/sql/init_b.sql      di-oracle:/tmp/init_b.sql
+docker cp college-b/src/main/resources/sql/init_b_data.sql di-oracle:/tmp/init_b_data.sql
+docker exec di-oracle bash -c \
+    "NLS_LANG=.AL32UTF8 sqlplus -s system/oracle123@freepdb1 @/tmp/init_b.sql"
+docker exec di-oracle bash -c \
+    "NLS_LANG=.AL32UTF8 sqlplus -s collegeb/collegeb@freepdb1 @/tmp/init_b_data.sql"
 
 # C 院 — MySQL
-docker exec -i di-mysql mysql -uroot -pmysql123 --default-character-set=utf8mb4 \
-    < college-c/src/main/resources/sql/init_c.sql
-
-docker exec -i di-mysql mysql -uroot -pmysql123 --default-character-set=utf8mb4 collegeC \
-    < college-c/src/main/resources/sql/init_c_data.sql
+docker cp college-c/src/main/resources/sql/init_c.sql      di-mysql:/tmp/init_c.sql
+docker cp college-c/src/main/resources/sql/init_c_data.sql di-mysql:/tmp/init_c_data.sql
+docker exec di-mysql sh -c \
+    "mysql -uroot -pmysql123 --default-character-set=utf8mb4 < /tmp/init_c.sql"
+docker exec di-mysql sh -c \
+    "mysql -uroot -pmysql123 --default-character-set=utf8mb4 collegeC < /tmp/init_c_data.sql"
 ```
+
+灌完后 `./scripts/stop-all.sh && ./scripts/start-all.sh` 重启 server 让其拿到新数据。
 
 ---
 
 ## 运行测试
 
 ```bash
-# 全部单元测试（~110 个，不需要 Docker）
-mvn test -Dsurefire.failIfNoSpecifiedTests=false
+# 全部单元测试（~146 个，不需要 Docker）
+mvn test
 
 # 集成测试（需要对应数据库运行中）
 mvn -pl college-a test -Dtest="AccountDaoIT,StudentDaoIT,CourseDaoIT,ChoiceDaoIT"
@@ -162,10 +166,11 @@ data-integration/
   ├── 本院课程 → 本院 DAO（SQL Server / Oracle / MySQL）
   └── 跨院课程 → Integration Server → XSL 格式转换 → 目标院 Server → 目标院 DAO
 
-课程共享：LIST_SHARED_COURSES → Integration 向 B/C 拉取 → formatX.xsl 统一 → 合并 → unifiedToX.xsl 返回
-跨院选课：ENROLL → 前缀检测（AC/BC/CC）→ CROSS_ENROLL → APPLY_CHOICE → 目标院写入选课表
+课程共享：LIST_SHARED_COURSES → Integration 向 A/B/C（除自己）拉取 → formatX.xsl 统一 → 合并 → unifiedToX.xsl 返回
+跨院选课：ENROLL → 前缀检测（AC/BC/CC）→ CROSS_ENROLL → APPLY_CHOICE → 目标院写选课表（带 来源 列）
 跨院退课：WITHDRAW → 同上 → CROSS_WITHDRAW → REVOKE_CHOICE → 目标院删除
 全局统计：STATS_GLOBAL → Integration 向三院 STATS_PULL → 聚合 → 返回报表
+我的选课：LIST_MY_CHOICES → 本院 join + 转发 PULL_MY_CHOICES → Integration fan-out 三院 ASK_MY_CHOICES → unifiedMyChoiceToX.xsl 翻成本院字段
 ```
 
 ---
@@ -181,3 +186,18 @@ data-integration/
 | 选课表约束 | UNIQUE(课程编号,学生编号) | 无唯一约束 | UNIQUE(Sno,Cno) |
 | 课程编号前缀 | AC | BC | CC |
 | 学生编号前缀 | AS | BS | CS |
+
+> 三院 `选课` 表都额外有 `来源` / `Org` 列（默认本院字符 'A'/'B'/'C'），跨院选课时记录请求方学院；选课表对学生表**没有 FK**——跨院学生不在本院学生表里，外键约束会破坏跨院流。
+
+---
+
+## 故障排查
+
+| 现象 | 多半原因 | 处理 |
+|------|---------|------|
+| `ERROR: port 9001 already in use` | 上次 stop-all 没杀干净 / pid 文件丢失 | 再跑一次 `./scripts/stop-all.sh`（已加按端口兜底清理）。或手工：`for p in 9001 9002 9003 9100; do lsof -tiTCP:$p -sTCP:LISTEN \| xargs -r kill; done` |
+| `ORA-01109: database not open` | Oracle 容器重启后 PDB 没自动 OPEN | `docker exec di-oracle sqlplus -s system/oracle123 <<<'ALTER PLUGGABLE DATABASE freepdb1 OPEN;'` |
+| `ERROR 1064 ... near '��课'` 灌 MySQL | docker exec 默认 charset 把中文表名当 latin1 | 灌 SQL 时加 `--default-character-set=utf8mb4`（README 已用），或用 `docker cp` 进容器后在容器内执行 |
+| 选共享课报 `cvc-datatype-valid: '4.0' is not a valid value for 'integer'` | 旧版 XSD 把 `score`/`time` 定为 `xs:unsignedByte` | 已修（commit 1b0427a），重启 server 即可 |
+| `加载共享课程失败: load xsl: /xsl/BtoA.xsl` | XSL 在 integration 模块但 college server classpath 没含它 | 已修，每院的 `unifiedToX.xsl` 已迁到对应 college 模块 |
+| `选课失败: APPLY_FAILED detail: enroll failed` 但「我的选课」能看到这门课 | 旧版 B 院 `ChoiceDao` 在 autoCommit=true 连接上调 `c.commit()`，INSERT 已 autocommit、commit() 抛异常 | 已修（commit 删了 redundant commit） |
