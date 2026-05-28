@@ -7,6 +7,7 @@ import integration.server.handler.CrossEnrollHandler;
 import integration.server.handler.CrossWithdrawHandler;
 import integration.server.handler.FetchSharedCoursesHandler;
 import integration.server.handler.PingHandler;
+import integration.server.handler.PullMyChoicesHandler;
 import integration.server.handler.StatsGlobalHandler;
 
 import java.io.IOException;
@@ -72,7 +73,8 @@ public class IntegrationServer implements AutoCloseable {
         .register(Command.FETCH_SHARED_COURSES, new FetchSharedCoursesHandler(clientA, clientB, clientC))
         .register(Command.CROSS_ENROLL, new CrossEnrollHandler(clientA, clientB, clientC))
         .register(Command.CROSS_WITHDRAW, new CrossWithdrawHandler(clientA, clientB, clientC))
-        .register(Command.STATS_GLOBAL, new StatsGlobalHandler(clientA, clientB, clientC));
+        .register(Command.STATS_GLOBAL, new StatsGlobalHandler(clientA, clientB, clientC))
+        .register(Command.PULL_MY_CHOICES, new PullMyChoicesHandler(clientA, clientB, clientC));
     IntegrationServer server = new IntegrationServer(port, router);
     server.serve();
   }
