@@ -24,6 +24,7 @@ public class CourseListFrame extends JFrame {
   private final JButton enrollButton;
   private final JButton withdrawButton;
   private final JButton statsButton;
+  private final JButton myChoicesButton;
 
   private static final String[] COLUMNS = {
       "课程编号", "课程名称", "学分", "授课老师", "授课地点", "共享"
@@ -55,6 +56,8 @@ public class CourseListFrame extends JFrame {
     enrollButton = new JButton("选课");
     withdrawButton = new JButton("退课");
     statsButton = new JButton("全局统计");
+    myChoicesButton = new JButton("我的选课");
+    myChoicesButton.addActionListener(e -> openMyChoices());
     refreshLocalButton.addActionListener(e -> loadLocalCourses());
     refreshSharedButton.addActionListener(e -> loadSharedCourses());
     enrollButton.addActionListener(e -> doEnroll());
@@ -65,6 +68,7 @@ public class CourseListFrame extends JFrame {
     buttonPanel.add(enrollButton);
     buttonPanel.add(withdrawButton);
     buttonPanel.add(statsButton);
+    buttonPanel.add(myChoicesButton);
 
     statusLabel = new JLabel(" ", SwingConstants.CENTER);
 
@@ -254,6 +258,13 @@ public class CourseListFrame extends JFrame {
     enrollButton.setEnabled(enabled);
     withdrawButton.setEnabled(enabled);
     statsButton.setEnabled(enabled);
+    myChoicesButton.setEnabled(enabled);
+  }
+
+  private void openMyChoices() {
+    String input = JOptionPane.showInputDialog(this, "学生编号:", username);
+    if (input == null || input.isBlank()) return;
+    new MyChoicesDialog(this, college, input.trim(), client).setVisible(true);
   }
 
   private void populateTable(String xml) {
