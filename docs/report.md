@@ -272,6 +272,52 @@ sequenceDiagram
 - **XSL 翻译在 home server 端做**：客户端零 XSL 依赖，与共享课程流水线一致（client 不依赖 college 模块的 classpath）
 - **路由排除 home 院**：`PullMyChoicesHandler` 用 `home` 属性决定向哪两院 fan-out，避免重复查询本院
 
+### 3.6 个人信息管理流程
+
+学生可查看和修改自己的个人信息（姓名、性别、院系）。Get Student Profile 返回本院格式的学生 XML，客户端以对话框呈现并支持编辑后提交 Update。
+
+```mermaid
+sequenceDiagram
+    participant CA as Client
+    participant SA as College Server
+    participant DB as 本院 DB
+
+    CA->>SA: GET_STUDENT_PROFILE<br/>sno=AS001
+    SA->>DB: SELECT 学号,姓名,性别,院系<br/>FROM 学生 WHERE 学号=AS001
+    DB-->>SA: Row
+    SA-->>CA: OK + 学生 XML
+    Note over CA: ProfileDialog 表单展示<br/>用户编辑后点保存
+
+    CA->>SA: UPDATE_STUDENT_PROFILE<br/>sno=AS001, name/sex/dept
+    SA->>DB: UPDATE 学生 SET ...<br/>WHERE 学号=AS001
+    DB-->>SA: OK (1 row)
+    SA-->>CA: OK
+    Note over CA: 提示"个人信息已更新"
+```
+
+### 3.7 教务管理流程（管理员）
+
+管理员角色登录后可查看本院学生列表和选课列表。
+
+```mermaid
+sequenceDiagram
+    participant CA as Admin Client
+    participant SA as College Server
+    participant DB as 本院 DB
+
+    CA->>SA: LIST_STUDENTS
+    SA->>DB: SELECT * FROM 学生
+    DB-->>SA: 50 rows
+    SA-->>CA: OK + 学生列表 XML
+    Note over CA: AdminDataDialog<br/>Tab 1: 学生表
+
+    CA->>SA: LIST_CHOICES (admin)
+    SA->>DB: SELECT 选课 JOIN 学生<br/>SELECT 选课 JOIN 课程
+    DB-->>SA: rows
+    SA-->>CA: OK + 选课列表 XML
+    Note over CA: Tab 2: 选课表
+```
+
 ---
 
 ## 4. XML 技术应用
@@ -289,23 +335,37 @@ sequenceDiagram
 | 5 | 目标 College Server 入口 | 再次验证（防御性） |
 | 6 | XSL 转换前后对照 | 日志存档 `logs/transform/` |
 
-### 4.2 XSL 转换文件清单
+### 4.2 XSL 转换文件清单（19 个）
 
-| 文件 | 角色 | 部署位置 |
-|------|------|---------|
-| `formatA.xsl` | A 院原生 → 统一格式（共享课聚合） | integration |
-| `formatB.xsl` | B 院原生 → 统一格式（共享课聚合） | integration |
-| `formatC.xsl` | C 院原生 → 统一格式（共享课聚合） | integration |
-| `formatA-myChoice.xsl` | A 院 `<myChoiceSet>` → 统一 `<classes>`+sno+grade | integration |
-| `formatB-myChoice.xsl` | B 院 `<myChoiceSet>` → 同上 | integration |
-| `formatC-myChoice.xsl` | C 院 `<myChoiceSet>` → 同上 | integration |
-| `unifiedToA.xsl` | 统一格式 → A 院格式（共享课展示） | college-a |
-| `unifiedToB.xsl` | 统一格式 → B 院格式 | college-b |
-| `unifiedToC.xsl` | 统一格式 → C 院格式 | college-c |
-| `unifiedMyChoiceToA.xsl` | 统一 → A 院（跨院选课展示，含来源/学号/成绩） | college-a |
-| `unifiedMyChoiceToB.xsl` | 同上 | college-b |
-| `unifiedMyChoiceToC.xsl` | 同上 | college-c |
-| `identity.xsl` | 身份变换（回归测试） | integration |
+**聚合方向（院系格式 → 统一格式，deploy 在 integration）：**
+
+| 文件 | 角色 |
+|------|------|
+| `formatA.xsl` | A 院课程 → 统一 `<classes>` |
+| `formatB.xsl` | B 院课程 → 统一 `<classes>` |
+| `formatC.xsl` | C 院课程 → 统一 `<classes>` |
+| `formatA-myChoice.xsl` | A 院 `<myChoiceSet>` → 统一 `<classes>`+sno+grade |
+| `formatB-myChoice.xsl` | B 院 `<myChoiceSet>` → 同上 |
+| `formatC-myChoice.xsl` | C 院 `<myChoiceSet>` → 同上 |
+| `formatStudent.xsl` | 院系学生格式 → 统一 `<students>` |
+| `formatClass.xsl` | 院系课程格式 → 统一 `<classes>`（通用版） |
+| `formatClassChoice.xsl` | 院系选课格式 → 统一 `<classes>`+grade |
+| `identity.xsl` | 身份变换（回归测试） |
+
+**分发方向（统一格式 → 院系格式，deploy 在 integration）：**
+
+| 文件 | 角色 |
+|------|------|
+| `studentToA.xsl` / `studentToB.xsl` / `studentToC.xsl` | 统一学生 → A/B/C 院系学生格式 |
+| `classToA.xsl` / `classToB.xsl` / `classToC.xsl` | 统一课程 → A/B/C 院系课程格式 |
+| `choiceToA.xsl` / `choiceToB.xsl` / `choiceToC.xsl` | 统一选课 → A/B/C 院系选课格式 |
+
+**展示方向（统一格式 → 院系字段，deploy 在各 college 模块）：**
+
+| 文件 | 角色 |
+|------|------|
+| `unifiedToA.xsl` / `unifiedToB.xsl` / `unifiedToC.xsl` | 统一课程 → A/B/C 院系字段（共享课展示） |
+| `unifiedMyChoiceToA.xsl` / `unifiedMyChoiceToB.xsl` / `unifiedMyChoiceToC.xsl` | 统一选课 → A/B/C 院系字段（跨院选课展示） |
 
 ### 4.3 通信协议帧格式
 
@@ -411,7 +471,7 @@ Content-Length: <字节数>\n
 | Maven 多模块源码 | 项目根目录 |
 | 建库脚本 + 种子数据 | `college-{a,b,c}/src/main/resources/sql/` |
 | XML Schema (4 个统一 XSD + 各院本地 XSD) | `common/src/main/resources/schema/` + 各院 `xml/` |
-| XSL 转换文件 (13 个) | `integration/src/main/resources/xsl/` (7) + 各院 `src/main/resources/xsl/` (6) |
+| XSL 转换文件 (25 个) | `integration/xsl/` (19) + 各院 `xsl/` (6) |
 | 启动脚本 | `scripts/start-all.sh` |
 | 演示脚本 | `docs/demo.md` |
 | 设计文档 | `docs/superpowers/specs/` |

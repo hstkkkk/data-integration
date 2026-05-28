@@ -101,23 +101,42 @@ A、B、C 三院按上述流程各自演示，证明三个 DBMS（SQL Server / O
    - 下：跨院选课（多列「来源」标记 B 或 C）
    - 底部 status：加载完成行数 或 红字外院故障详情
 
-## 4. 关键 XML 资源（13 个 XSL + 4 个 XSD）
+### 加分需求 — 个人信息 + 教务管理
+1. **个人信息**：点击「个人信息」→ 弹窗显示当前学生信息（学号/姓名/性别/院系）→ 可编辑后点击「保存」更新
+2. **教务管理**（仅管理员）：点击「教务管理」→ 弹窗多标签页
+   - Tab 1：学生列表（所有本院学生）
+   - Tab 2：选课列表（学生编号、课程编号、成绩、来源）
+   - Tab 2 的 `来源` 列直观展示哪些选课是跨院选课
+
+## 4. 关键 XML 资源（25 个 XSL + 4 个 XSD）
 
 | 文件 | 角色 |
 |------|------|
 | `integration/src/main/resources/xsl/formatA.xsl` | A 院原生 → 统一（共享课聚合） |
 | `integration/src/main/resources/xsl/formatB.xsl` | B 院原生 → 统一（共享课聚合） |
 | `integration/src/main/resources/xsl/formatC.xsl` | C 院原生 → 统一（共享课聚合） |
-| `integration/src/main/resources/xsl/identity.xsl` | 身份变换（用于回归测试） |
-| `integration/src/main/resources/xsl/formatA-myChoice.xsl` | A 院 `<myChoiceSet>` → 统一 `<classes>` + sno + grade |
-| `integration/src/main/resources/xsl/formatB-myChoice.xsl` | B 院 `<myChoiceSet>` → 统一（同上） |
-| `integration/src/main/resources/xsl/formatC-myChoice.xsl` | C 院 `<myChoiceSet>` → 统一（同上） |
-| `college-a/src/main/resources/xsl/unifiedToA.xsl` | 统一 → A 院本地（共享课展示） |
-| `college-b/src/main/resources/xsl/unifiedToB.xsl` | 统一 → B 院本地（共享课展示） |
-| `college-c/src/main/resources/xsl/unifiedToC.xsl` | 统一 → C 院本地（共享课展示） |
-| `college-a/src/main/resources/xsl/unifiedMyChoiceToA.xsl` | 统一 → A 院本地（跨院选课展示，含来源/学号/成绩） |
-| `college-b/src/main/resources/xsl/unifiedMyChoiceToB.xsl` | 统一 → B 院本地（同上） |
-| `college-c/src/main/resources/xsl/unifiedMyChoiceToC.xsl` | 统一 → C 院本地（同上） |
+| `integration/src/main/resources/xsl/identity.xsl` | 身份变换（回归测试） |
+| `integration/src/main/resources/xsl/formatA-myChoice.xsl` | A 院 myChoice → 统一 classes+sno+grade |
+| `integration/src/main/resources/xsl/formatB-myChoice.xsl` | B 院 myChoice → 统一 |
+| `integration/src/main/resources/xsl/formatC-myChoice.xsl` | C 院 myChoice → 统一 |
+| `integration/src/main/resources/xsl/formatStudent.xsl` | 院系学生 → 统一 students |
+| `integration/src/main/resources/xsl/formatClass.xsl` | 院系课程 → 统一 classes（通用） |
+| `integration/src/main/resources/xsl/formatClassChoice.xsl` | 院系选课 → 统一 classes+grade |
+| `integration/src/main/resources/xsl/studentToA.xsl` | 统一学生 → A 院格式 |
+| `integration/src/main/resources/xsl/studentToB.xsl` | 统一学生 → B 院格式 |
+| `integration/src/main/resources/xsl/studentToC.xsl` | 统一学生 → C 院格式 |
+| `integration/src/main/resources/xsl/classToA.xsl` | 统一课程 → A 院格式 |
+| `integration/src/main/resources/xsl/classToB.xsl` | 统一课程 → B 院格式 |
+| `integration/src/main/resources/xsl/classToC.xsl` | 统一课程 → C 院格式 |
+| `integration/src/main/resources/xsl/choiceToA.xsl` | 统一选课 → A 院格式 |
+| `integration/src/main/resources/xsl/choiceToB.xsl` | 统一选课 → B 院格式 |
+| `integration/src/main/resources/xsl/choiceToC.xsl` | 统一选课 → C 院格式 |
+| `college-a/src/main/resources/xsl/unifiedToA.xsl` | 统一 → A 院（共享课展示） |
+| `college-b/src/main/resources/xsl/unifiedToB.xsl` | 统一 → B 院（共享课展示） |
+| `college-c/src/main/resources/xsl/unifiedToC.xsl` | 统一 → C 院（共享课展示） |
+| `college-a/src/main/resources/xsl/unifiedMyChoiceToA.xsl` | 统一 → A 院（跨院选课展示） |
+| `college-b/src/main/resources/xsl/unifiedMyChoiceToB.xsl` | 统一 → B 院（同上） |
+| `college-c/src/main/resources/xsl/unifiedMyChoiceToC.xsl` | 统一 → C 院（同上） |
 | `common/src/main/resources/schema/formatClass.xsd` | 统一 `<classes>` 课程格式 XSD 校验（共享课用） |
 | `common/src/main/resources/schema/formatStudent.xsd` | 统一学生格式 XSD 校验 |
 | `common/src/main/resources/schema/formatChoice.xsd` | 统一选课格式 XSD 校验 |
