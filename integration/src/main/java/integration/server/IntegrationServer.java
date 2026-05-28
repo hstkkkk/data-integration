@@ -69,7 +69,7 @@ public class IntegrationServer implements AutoCloseable {
     var clientC = new CollegeClient("127.0.0.1", 9003);
     IntegrationRouter router = new IntegrationRouter()
         .register(Command.PING, new PingHandler())
-        .register(Command.FETCH_SHARED_COURSES, new FetchSharedCoursesHandler(clientB, clientC))
+        .register(Command.FETCH_SHARED_COURSES, new FetchSharedCoursesHandler(clientA, clientB, clientC))
         .register(Command.CROSS_ENROLL, new CrossEnrollHandler(clientA, clientB, clientC))
         .register(Command.CROSS_WITHDRAW, new CrossWithdrawHandler(clientA, clientB, clientC))
         .register(Command.STATS_GLOBAL, new StatsGlobalHandler(clientA, clientB, clientC));

@@ -15,10 +15,12 @@ import java.util.UUID;
 
 public class FetchSharedCoursesHandler implements Handler {
 
+  private final CollegeClient clientA;
   private final CollegeClient clientB;
   private final CollegeClient clientC;
 
-  public FetchSharedCoursesHandler(CollegeClient clientB, CollegeClient clientC) {
+  public FetchSharedCoursesHandler(CollegeClient clientA, CollegeClient clientB, CollegeClient clientC) {
+    this.clientA = clientA;
     this.clientB = clientB;
     this.clientC = clientC;
   }
@@ -30,6 +32,11 @@ public class FetchSharedCoursesHandler implements Handler {
       Document merged = DocumentHelper.createDocument();
       Element root = merged.addElement("classes");
 
+      if (!"A".equals(fromCollege)) {
+        collectFromCollege(root, clientA, "A",
+            XsltTransformer.fromClasspath("/xsl/formatA.xsl"),
+            XsdValidator.fromClasspath("/schema/formatClass.xsd"));
+      }
       if (!"B".equals(fromCollege)) {
         collectFromCollege(root, clientB, "B",
             XsltTransformer.fromClasspath("/xsl/formatB.xsl"),
@@ -70,7 +77,10 @@ public class FetchSharedCoursesHandler implements Handler {
   }
 
   private static String parseFromCollege(String xml) {
-    try { return XmlIO.parse(xml).getRootElement().elementText("from"); }
-    catch (Exception e) { return ""; }
+    try {
+      var root = XmlIO.parse(xml).getRootElement();
+      String text = "from".equals(root.getName()) ? root.getText() : root.elementText("from");
+      return text == null ? "" : text.trim();
+    } catch (Exception e) { return ""; }
   }
 }
