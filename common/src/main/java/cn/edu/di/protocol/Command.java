@@ -7,7 +7,7 @@ public enum Command {
     STATS_PULL, STATS_DATA,
     LIST_MY_CHOICES, PULL_MY_CHOICES, ASK_MY_CHOICES,
     GET_STUDENT_PROFILE, UPDATE_STUDENT_PROFILE, LIST_STUDENTS, LIST_CHOICES,
-    PING, OK, ERR, UNKNOWN;
+    MONITOR_STATUS, PING, OK, ERR, UNKNOWN;
 
     public static Command parse(String s) {
         try { return Command.valueOf(s); }
