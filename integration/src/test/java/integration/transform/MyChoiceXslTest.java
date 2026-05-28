@@ -33,4 +33,18 @@ class MyChoiceXslTest {
     assertTrue(out.contains("<id>BC003</id>"));
     assertTrue(out.contains("<sno>BS001</sno>"));
   }
+
+  @Test void formatC_myChoice_translates_to_unified_classes() {
+    var t = XsltTransformer.fromClasspath("/xsl/formatC-myChoice.xsl");
+    String in = "<myChoiceSet sno=\"CS001\">"
+        + "<course><Cno>CC005</Cno><Cnm>Net</Cnm>"
+        + "<Ctm>32</Ctm><Cpt>2</Cpt>"
+        + "<Tec>Li</Tec><Pla>C301</Pla>"
+        + "<Sno>CS001</Sno><Grd></Grd></course>"
+        + "</myChoiceSet>";
+    String out = t.transform(in);
+    assertTrue(out.contains("<class origin=\"C\">"));
+    assertTrue(out.contains("<id>CC005</id>"));
+    assertTrue(out.contains("<sno>CS001</sno>"));
+  }
 }
