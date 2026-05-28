@@ -15,9 +15,13 @@ import college.a.server.handler.ListLocalCoursesHandler;
 import college.a.server.handler.ListSharedCoursesHandler;
 import college.a.server.handler.LoginHandler;
 import college.a.server.handler.AskCourseInfoHandler;
+import college.a.server.handler.GetStudentProfileHandler;
+import college.a.server.handler.ListChoicesHandler;
 import college.a.server.handler.RevokeChoiceHandler;
+import college.a.server.handler.ListStudentsHandler;
 import college.a.server.handler.StatsForwardHandler;
 import college.a.server.handler.StatsPullHandler;
+import college.a.server.handler.UpdateStudentProfileHandler;
 import college.a.server.handler.WithdrawLocalHandler;
 import college.a.service.AuthService;
 
@@ -91,13 +95,17 @@ public class CollegeAServer implements AutoCloseable {
         .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao, config))
         .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao))
         .register(Command.LIST_SHARED_COURSES,
-            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "A", "/xsl/unifiedToA.xsl"))
+            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "A", "/xsl/unifiedToA.xsl", courseDao))
         .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
         .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))
         .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))
         .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config))
         .register(Command.LIST_MY_CHOICES, new ListMyChoicesHandler(choiceDao, courseDao, config))
-        .register(Command.ASK_MY_CHOICES, new AskMyChoicesHandler(choiceDao, courseDao));
+        .register(Command.ASK_MY_CHOICES, new AskMyChoicesHandler(choiceDao, courseDao))
+        .register(Command.GET_STUDENT_PROFILE, new GetStudentProfileHandler(studentDao))
+        .register(Command.UPDATE_STUDENT_PROFILE, new UpdateStudentProfileHandler(studentDao))
+        .register(Command.LIST_STUDENTS, new ListStudentsHandler(studentDao))
+        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao));
     CollegeAServer server = new CollegeAServer(port, router);
     server.serve();
   }

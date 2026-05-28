@@ -43,6 +43,19 @@ public class StudentDao {
     } catch (SQLException e) { throw new RuntimeException(e); }
   }
 
+  public boolean updateProfile(String id, String name, String sex, String major) {
+    String sql = "UPDATE 学生 SET 姓名=?, 性别=?, 专业=? WHERE 学号=?";
+    try (var c = ds.getConnection(); var ps = c.prepareStatement(sql)) {
+      ps.setString(1, name);
+      ps.setString(2, sex);
+      ps.setString(3, major);
+      ps.setString(4, id);
+      int rows = ps.executeUpdate();
+      c.commit();
+      return rows == 1;
+    } catch (SQLException e) { throw new RuntimeException(e); }
+  }
+
   private static Row map(java.sql.ResultSet rs) throws SQLException {
     return new Row(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getString(5));
   }

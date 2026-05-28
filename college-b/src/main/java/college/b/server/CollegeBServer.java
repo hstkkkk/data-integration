@@ -8,14 +8,18 @@ import college.b.jdbc.JdbcFactory;
 import college.b.server.handler.ApplyChoiceHandler;
 import college.b.server.handler.AskMyChoicesHandler;
 import college.b.server.handler.EnrollLocalHandler;
+import college.b.server.handler.GetStudentProfileHandler;
+import college.b.server.handler.ListChoicesHandler;
 import college.b.server.handler.ListLocalCoursesHandler;
 import college.b.server.handler.ListMyChoicesHandler;
 import college.b.server.handler.ListSharedCoursesHandler;
+import college.b.server.handler.ListStudentsHandler;
 import college.b.server.handler.LoginHandler;
 import college.b.server.handler.AskCourseInfoHandler;
 import college.b.server.handler.RevokeChoiceHandler;
 import college.b.server.handler.StatsForwardHandler;
 import college.b.server.handler.StatsPullHandler;
+import college.b.server.handler.UpdateStudentProfileHandler;
 import college.b.server.handler.WithdrawLocalHandler;
 import college.b.service.AuthService;
 import cn.edu.di.protocol.Command;
@@ -86,13 +90,17 @@ public class CollegeBServer implements AutoCloseable {
         .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao, config))
         .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao))
         .register(Command.LIST_SHARED_COURSES,
-            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "B", "/xsl/unifiedToB.xsl"))
+            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "B", "/xsl/unifiedToB.xsl", courseDao))
         .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
         .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))
         .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))
         .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config))
         .register(Command.LIST_MY_CHOICES, new ListMyChoicesHandler(choiceDao, courseDao, config))
-        .register(Command.ASK_MY_CHOICES, new AskMyChoicesHandler(choiceDao, courseDao));
+        .register(Command.ASK_MY_CHOICES, new AskMyChoicesHandler(choiceDao, courseDao))
+        .register(Command.GET_STUDENT_PROFILE, new GetStudentProfileHandler(studentDao))
+        .register(Command.UPDATE_STUDENT_PROFILE, new UpdateStudentProfileHandler(studentDao))
+        .register(Command.LIST_STUDENTS, new ListStudentsHandler(studentDao))
+        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao));
 
     try (var srv = new CollegeBServer(port, router)) {
       System.out.println("College B server listening on " + srv.getPort());

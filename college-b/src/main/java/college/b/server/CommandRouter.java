@@ -17,6 +17,11 @@ public class CommandRouter {
   public Message dispatch(Message req) {
     Handler h = handlers.get(req.command());
     if (h == null) return Message.err(req.requestId(), "UNKNOWN_CMD", "no handler for " + req.command());
-    return h.handle(req);
+    try {
+      return h.handle(req);
+    } catch (Exception e) {
+      e.printStackTrace(System.err);
+      return Message.err(req.requestId(), "SERVER_ERROR", e.getMessage());
+    }
   }
 }

@@ -12,6 +12,6 @@ public class AuthService {
   public Optional<Session> login(String user, String pass) {
     return dao.findByUsername(user)
         .filter(a -> a.password().equals(pass))
-        .map(a -> new Session(a.username(), "stu"));
+        .map(a -> new Session(a.username(), "admin".equalsIgnoreCase(a.username()) ? "adm" : "stu"));
   }
 }

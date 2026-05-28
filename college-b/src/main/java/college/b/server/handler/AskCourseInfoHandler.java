@@ -14,6 +14,6 @@ public class AskCourseInfoHandler implements Handler {
 
   @Override
   public Message handle(Message request) {
-    return Message.ok(request.requestId(), CourseBAdapter.marshal(courseDao.findAll()));
+    return Message.ok(request.requestId(), CourseBAdapter.marshal(courseDao.findExportableShared()));
   }
 }

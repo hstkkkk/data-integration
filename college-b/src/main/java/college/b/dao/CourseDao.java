@@ -31,6 +31,48 @@ public class CourseDao {
     return query("SELECT 编号,名称,课时,学分,老师,地点,共享 FROM 课程 WHERE 共享='Y'");
   }
 
+  public List<Row> findExportableShared() {
+    return query("SELECT 编号,名称,课时,学分,老师,地点,共享 FROM 课程 WHERE 共享='Y' AND 编号 LIKE 'BC%'");
+  }
+
+  public int upsertShared(List<Row> rows) {
+    int count = 0;
+    for (Row row : rows) {
+      count += upsertShared(row);
+    }
+    return count;
+  }
+
+  private int upsertShared(Row row) {
+    String update = "UPDATE 课程 SET 名称=?, 课时=?, 学分=?, 老师=?, 地点=?, 共享=? WHERE 编号=?";
+    String insert = "INSERT INTO 课程(编号,名称,课时,学分,老师,地点,共享) VALUES(?,?,?,?,?,?,?)";
+    try (var c = ds.getConnection()) {
+      try (var ps = c.prepareStatement(update)) {
+        ps.setString(1, row.name());
+        ps.setInt(2, row.hours());
+        ps.setBigDecimal(3, row.score());
+        ps.setString(4, row.teacher());
+        ps.setString(5, row.location());
+        ps.setString(6, row.shared() ? "Y" : "N");
+        ps.setString(7, row.id());
+        int updated = ps.executeUpdate();
+        if (updated > 0) {
+          return updated;
+        }
+      }
+      try (var ps = c.prepareStatement(insert)) {
+        ps.setString(1, row.id());
+        ps.setString(2, row.name());
+        ps.setInt(3, row.hours());
+        ps.setBigDecimal(4, row.score());
+        ps.setString(5, row.teacher());
+        ps.setString(6, row.location());
+        ps.setString(7, row.shared() ? "Y" : "N");
+        return ps.executeUpdate();
+      }
+    } catch (SQLException e) { throw new RuntimeException(e); }
+  }
+
   private List<Row> query(String sql) {
     try (var c = ds.getConnection(); var ps = c.prepareStatement(sql); var rs = ps.executeQuery()) {
       List<Row> out = new ArrayList<>();

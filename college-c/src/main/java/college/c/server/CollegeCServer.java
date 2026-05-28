@@ -8,14 +8,18 @@ import college.c.jdbc.JdbcFactory;
 import college.c.server.handler.ApplyChoiceHandler;
 import college.c.server.handler.AskMyChoicesHandler;
 import college.c.server.handler.EnrollLocalHandler;
+import college.c.server.handler.GetStudentProfileHandler;
+import college.c.server.handler.ListChoicesHandler;
 import college.c.server.handler.ListLocalCoursesHandler;
 import college.c.server.handler.ListMyChoicesHandler;
 import college.c.server.handler.ListSharedCoursesHandler;
+import college.c.server.handler.ListStudentsHandler;
 import college.c.server.handler.LoginHandler;
 import college.c.server.handler.AskCourseInfoHandler;
 import college.c.server.handler.RevokeChoiceHandler;
 import college.c.server.handler.StatsForwardHandler;
 import college.c.server.handler.StatsPullHandler;
+import college.c.server.handler.UpdateStudentProfileHandler;
 import college.c.server.handler.WithdrawLocalHandler;
 import college.c.service.AuthService;
 import cn.edu.di.protocol.Command;
@@ -84,13 +88,17 @@ public class CollegeCServer implements AutoCloseable {
         .register(Command.WITHDRAW, new WithdrawLocalHandler(choiceDao, config))
         .register(Command.ASK_COURSE_INFO, new AskCourseInfoHandler(courseDao))
         .register(Command.LIST_SHARED_COURSES,
-            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "C", "/xsl/unifiedToC.xsl"))
+            new ListSharedCoursesHandler(config.integrationHost, config.integrationPort, "C", "/xsl/unifiedToC.xsl", courseDao))
         .register(Command.APPLY_CHOICE, new ApplyChoiceHandler(courseDao, choiceDao))
         .register(Command.REVOKE_CHOICE, new RevokeChoiceHandler(choiceDao))
         .register(Command.STATS_GLOBAL, new StatsForwardHandler(config))
         .register(Command.STATS_PULL, new StatsPullHandler(studentDao, courseDao, choiceDao, config))
         .register(Command.LIST_MY_CHOICES, new ListMyChoicesHandler(choiceDao, courseDao, config))
-        .register(Command.ASK_MY_CHOICES, new AskMyChoicesHandler(choiceDao, courseDao));
+        .register(Command.ASK_MY_CHOICES, new AskMyChoicesHandler(choiceDao, courseDao))
+        .register(Command.GET_STUDENT_PROFILE, new GetStudentProfileHandler(studentDao))
+        .register(Command.UPDATE_STUDENT_PROFILE, new UpdateStudentProfileHandler(studentDao))
+        .register(Command.LIST_STUDENTS, new ListStudentsHandler(studentDao))
+        .register(Command.LIST_CHOICES, new ListChoicesHandler(choiceDao));
 
     try (var srv = new CollegeCServer(port, router)) {
       System.out.println("College C server listening on " + srv.getPort());

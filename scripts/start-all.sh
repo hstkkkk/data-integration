@@ -4,15 +4,53 @@ cd "$(dirname "$0")/.."
 
 mkdir -p logs
 
+# Detect the host platform once and keep the platform-specific branches explicit.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) PLATFORM='windows'; CP_SEP=';' ;;
+  Darwin*) PLATFORM='macos'; CP_SEP=':' ;;
+  Linux*) PLATFORM='linux'; CP_SEP=':' ;;
+  *) PLATFORM='unknown'; CP_SEP=':' ;;
+esac
+
+port_listening() {
+  local port="$1"
+  case "$PLATFORM" in
+    windows)
+      netstat -ano 2>/dev/null | awk -v needle=":$port" '
+        index($0, needle) && $0 ~ /LISTENING/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+      '
+      ;;
+    macos|linux|unknown)
+      command -v lsof >/dev/null 2>&1 &&
+          lsof -iTCP:"$port" -sTCP:LISTEN -n -P >/dev/null 2>&1
+      ;;
+  esac
+}
+
+show_port_listener() {
+  local port="$1"
+  case "$PLATFORM" in
+    windows)
+      netstat -ano 2>/dev/null | awk -v needle=":$port" 'index($0, needle) && $0 ~ /LISTENING/'
+      ;;
+    macos|linux|unknown)
+      command -v lsof >/dev/null 2>&1 &&
+          lsof -iTCP:"$port" -sTCP:LISTEN -n -P 2>/dev/null || true
+      ;;
+  esac
+}
+
 # Refuse to start if any target port is still occupied by a previous run.
 check_port_free() {
   local port="$1"
-  if lsof -iTCP:"$port" -sTCP:LISTEN -n -P >/dev/null 2>&1; then
+  if port_listening "$port"; then
     echo "ERROR: port $port already in use. Run ./scripts/stop-all.sh first." >&2
-    lsof -iTCP:"$port" -sTCP:LISTEN -n -P >&2
+    show_port_listener "$port" >&2
     exit 1
   fi
 }
+echo "Detected platform: $PLATFORM"
 for p in 9001 9002 9003 9100; do check_port_free "$p"; done
 
 echo "[1/5] Starting databases (Docker) ..."
@@ -34,19 +72,19 @@ mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -pl col
 mvn -q dependency:build-classpath -Dmdep.outputFile=target/classpath.txt -DincludeScope=runtime -pl client
 
 echo "[4/5] Starting servers ..."
-java -Dport=9100 -cp integration/target/classes:common/target/classes:$(cat integration/target/classpath.txt) \
+java -Dport=9100 -cp "integration/target/classes${CP_SEP}common/target/classes${CP_SEP}$(cat integration/target/classpath.txt)" \
     integration.server.IntegrationServer >logs/integration.log 2>&1 &
 echo $! > logs/integration.pid
 
-java -Dport=9001 -cp college-a/target/classes:common/target/classes:$(cat college-a/target/classpath.txt) \
+java -Dport=9001 -cp "college-a/target/classes${CP_SEP}common/target/classes${CP_SEP}$(cat college-a/target/classpath.txt)" \
     college.a.server.CollegeAServer >logs/college-a.log 2>&1 &
 echo $! > logs/college-a.pid
 
-java -Dport=9002 -cp college-b/target/classes:common/target/classes:$(cat college-b/target/classpath.txt) \
+java -Dport=9002 -cp "college-b/target/classes${CP_SEP}common/target/classes${CP_SEP}$(cat college-b/target/classpath.txt)" \
     college.b.server.CollegeBServer >logs/college-b.log 2>&1 &
 echo $! > logs/college-b.pid
 
-java -Dport=9003 -cp college-c/target/classes:common/target/classes:$(cat college-c/target/classpath.txt) \
+java -Dport=9003 -cp "college-c/target/classes${CP_SEP}common/target/classes${CP_SEP}$(cat college-c/target/classpath.txt)" \
     college.c.server.CollegeCServer >logs/college-c.log 2>&1 &
 echo $! > logs/college-c.pid
 
@@ -54,7 +92,7 @@ echo "[5/5] Verifying servers came up ..."
 verify_listening() {
   local name="$1" port="$2" pidfile="$3"
   for _ in {1..30}; do
-    if lsof -iTCP:"$port" -sTCP:LISTEN -n -P >/dev/null 2>&1; then
+    if port_listening "$port"; then
       echo "  $name :$port OK"
       return 0
     fi
@@ -77,6 +115,12 @@ verify_listening college-c   9003 logs/college-c.pid
 echo ""
 echo "All servers started. Logs in logs/."
 echo "To start clients:"
-echo '  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=A --server=127.0.0.1:9001'
-echo '  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=B --server=127.0.0.1:9002'
-echo '  java -cp client/target/classes:common/target/classes:$(cat client/target/classpath.txt) client.Main --college=C --server=127.0.0.1:9003'
+if [ "$PLATFORM" = "windows" ]; then
+  echo '  PowerShell: java -cp "client\target\classes;common\target\classes;$(Get-Content client\target\classpath.txt)" client.Main --college=A --server=127.0.0.1:9001'
+  echo '  PowerShell: java -cp "client\target\classes;common\target\classes;$(Get-Content client\target\classpath.txt)" client.Main --college=B --server=127.0.0.1:9002'
+  echo '  PowerShell: java -cp "client\target\classes;common\target\classes;$(Get-Content client\target\classpath.txt)" client.Main --college=C --server=127.0.0.1:9003'
+else
+  echo '  java -cp "client/target/classes:common/target/classes:$(cat client/target/classpath.txt)" client.Main --college=A --server=127.0.0.1:9001'
+  echo '  java -cp "client/target/classes:common/target/classes:$(cat client/target/classpath.txt)" client.Main --college=B --server=127.0.0.1:9002'
+  echo '  java -cp "client/target/classes:common/target/classes:$(cat client/target/classpath.txt)" client.Main --college=C --server=127.0.0.1:9003'
+fi

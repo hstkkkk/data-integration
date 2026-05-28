@@ -25,6 +25,8 @@ public class CourseListFrame extends JFrame {
   private final JButton withdrawButton;
   private final JButton statsButton;
   private final JButton myChoicesButton;
+  private final JButton profileButton;
+  private final JButton adminButton;
 
   private static final String[] COLUMNS = {
       "课程编号", "课程名称", "学分", "授课老师", "授课地点", "共享"
@@ -57,7 +59,11 @@ public class CourseListFrame extends JFrame {
     withdrawButton = new JButton("退课");
     statsButton = new JButton("全局统计");
     myChoicesButton = new JButton("我的选课");
+    profileButton = new JButton("个人信息");
+    adminButton = new JButton("教务管理");
     myChoicesButton.addActionListener(e -> openMyChoices());
+    profileButton.addActionListener(e -> openProfile());
+    adminButton.addActionListener(e -> openAdminData());
     refreshLocalButton.addActionListener(e -> loadLocalCourses());
     refreshSharedButton.addActionListener(e -> loadSharedCourses());
     enrollButton.addActionListener(e -> doEnroll());
@@ -69,6 +75,8 @@ public class CourseListFrame extends JFrame {
     buttonPanel.add(withdrawButton);
     buttonPanel.add(statsButton);
     buttonPanel.add(myChoicesButton);
+    buttonPanel.add(profileButton);
+    if (isAdmin()) buttonPanel.add(adminButton);
 
     statusLabel = new JLabel(" ", SwingConstants.CENTER);
 
@@ -77,6 +85,7 @@ public class CourseListFrame extends JFrame {
     bottomPanel.add(statusLabel, BorderLayout.SOUTH);
     mainPanel.add(bottomPanel, BorderLayout.SOUTH);
     add(mainPanel);
+    applyRolePermissions();
 
     loadLocalCourses();
   }
@@ -133,7 +142,7 @@ public class CourseListFrame extends JFrame {
     }
     String courseId = String.valueOf(tableModel.getValueAt(row, 0));
     String studentId = JOptionPane.showInputDialog(this,
-        label + "学生编号:", username);
+        label + "学生编号:", defaultStudentId());
     if (studentId == null || studentId.isBlank()) return;
 
     String payload = buildChoicePayload(courseId, studentId.trim());
@@ -259,12 +268,50 @@ public class CourseListFrame extends JFrame {
     withdrawButton.setEnabled(enabled);
     statsButton.setEnabled(enabled);
     myChoicesButton.setEnabled(enabled);
+    profileButton.setEnabled(enabled);
+    adminButton.setEnabled(enabled && isAdmin());
   }
 
   private void openMyChoices() {
-    String input = JOptionPane.showInputDialog(this, "学生编号:", username);
+    String input = JOptionPane.showInputDialog(this, "学生编号:", defaultStudentId());
     if (input == null || input.isBlank()) return;
     new MyChoicesDialog(this, college, input.trim(), client).setVisible(true);
+  }
+
+  private void openProfile() {
+    String id = isAdmin()
+        ? JOptionPane.showInputDialog(this, "学生编号:", defaultStudentId())
+        : defaultStudentId();
+    if (id == null || id.isBlank()) return;
+    new ProfileDialog(this, college, id.trim(), client).setVisible(true);
+  }
+
+  private void openAdminData() {
+    new AdminDataDialog(this, college, client).setVisible(true);
+  }
+
+  private void applyRolePermissions() {
+    boolean admin = isAdmin();
+    enrollButton.setVisible(!admin);
+    withdrawButton.setVisible(!admin);
+    myChoicesButton.setVisible(!admin);
+  }
+
+  private boolean isAdmin() {
+    return role != null && (role.equalsIgnoreCase("adm") || role.equalsIgnoreCase("admin"));
+  }
+
+  private String defaultStudentId() {
+    if (username == null) return "";
+    String trimmed = username.trim();
+    if (trimmed.length() >= 2 && Character.isLetter(trimmed.charAt(0))
+        && Character.isLetter(trimmed.charAt(1)) && trimmed.substring(0, 2).equals(trimmed.substring(0, 2).toUpperCase())) {
+      return trimmed;
+    }
+    if (trimmed.length() >= 3 && Character.isLetter(trimmed.charAt(0)) && Character.isLetter(trimmed.charAt(1))) {
+      return trimmed.substring(0, 2).toUpperCase() + trimmed.substring(2);
+    }
+    return trimmed;
   }
 
   private void populateTable(String xml) {

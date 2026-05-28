@@ -2,8 +2,11 @@ package college.b.server.handler;
 
 import cn.edu.di.protocol.Command;
 import cn.edu.di.protocol.Message;
+import cn.edu.di.xml.XmlIO;
 import cn.edu.di.xml.XsdValidator;
 import cn.edu.di.xml.XsltTransformer;
+import college.b.dao.CourseDao;
+import college.b.xml.CourseBAdapter;
 
 import java.net.Socket;
 import java.util.UUID;
@@ -14,13 +17,16 @@ public class ListSharedCoursesHandler implements Handler {
   private final int integrationPort;
   private final String fromCollege;
   private final String toLocalXsl;
+  private final CourseDao courseDao;
 
   public ListSharedCoursesHandler(String integrationHost, int integrationPort,
-                                  String fromCollege, String toLocalXsl) {
+                                  String fromCollege, String toLocalXsl,
+                                  CourseDao courseDao) {
     this.integrationHost = integrationHost;
     this.integrationPort = integrationPort;
     this.fromCollege = fromCollege;
     this.toLocalXsl = toLocalXsl;
+    this.courseDao = courseDao;
   }
 
   @Override
@@ -39,6 +45,8 @@ public class ListSharedCoursesHandler implements Handler {
         return Message.err(req.requestId(), "XML_SCHEMA", result.errors().toString());
       }
       String localXml = XsltTransformer.fromClasspath(toLocalXsl).transform(unifiedXml);
+      int saved = courseDao.upsertShared(CourseBAdapter.unmarshal(XmlIO.parse(localXml)));
+      System.out.println("saved shared courses for college B: " + saved);
       return Message.ok(req.requestId(), localXml);
     } catch (Exception e) {
       return Message.err(req.requestId(), "INTEGRATION_FAILED", e.getMessage());
